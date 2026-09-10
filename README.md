@@ -15,7 +15,7 @@ Early scaffolding. The public API below is a stub — real MetricKit/StateReport
 Swift Package Manager:
 
 ```swift
-.package(url: "https://github.com/Hitchscope/HitchScope.git", from: "0.0.1")
+.package(url: "https://github.com/HitchScope/HitchScope.git", from: "0.0.1")
 ```
 
 ## Usage
