@@ -1,0 +1,24 @@
+name: HitchScopeExample
+options:
+  bundleIdPrefix: com.hitchscope
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  HitchScope:
+    path: ..
+targets:
+  HitchScopeExample:
+    type: application
+    platform: iOS
+    sources:
+      - path: HitchScopeExample
+    dependencies:
+      - package: HitchScope
+        product: HitchScope
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hitchscope.example
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
