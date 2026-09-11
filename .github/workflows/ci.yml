@@ -20,4 +20,4 @@ jobs:
       # (plain `swift build`/`swift test` won't work either - they compile
       # for the macOS host by default, and this package is iOS-only).
       # Restore the build/test step once hosted runners support iOS 27.
-      - run: swift-format lint --recursive Sources Tests --strict
+      - run: xcrun swift-format lint --recursive Sources Tests --strict
