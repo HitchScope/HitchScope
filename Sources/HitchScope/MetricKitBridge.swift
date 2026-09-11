@@ -26,6 +26,8 @@ actor MetricKitBridge {
     }
   }
 
+  private var consumeMetricsTask: Task<Void, Never>?
+
   func start() {
     guard consumeTask == nil else { return }
     consumeTask = Task { [manager, sink] in
@@ -33,6 +35,15 @@ actor MetricKitBridge {
         for summary in Self.summarize(report) {
           await sink.enqueue(EventMapper.map(summary))
         }
+      }
+    }
+    consumeMetricsTask = Task { [manager, sink] in
+      for await report in manager.metricReports {
+        // Metrics arrive as a whole report at once (roughly daily, per
+        // Apple's own docs) - batch the whole report into one flush rather
+        // than one per value, keeping each ingest payload coherent.
+        let events = Self.summarizeMetrics(report).map(MetricAggregateMapper.map)
+        await sink.enqueueMetrics(events)
       }
     }
   }
@@ -114,6 +125,69 @@ actor MetricKitBridge {
 
     @unknown default:
       return []
+    }
+  }
+
+  // MARK: - MetricReport -> plain MetricAggregateSummary
+
+  /// Iterates `report.stateEntries` only (one state, full-day window,
+  /// unambiguous `windowStart`/`windowEnd` from `report.timeRange`) — NOT
+  /// `report.intervalEntries`, whose sub-day windows don't carry an absolute
+  /// start time of their own and how they anchor within the report's overall
+  /// `timeRange` isn't documented. Deferred until confirmed empirically
+  /// rather than guessed.
+  private static func summarizeMetrics(_ report: MetricReport) -> [MetricAggregateSummary] {
+    let windowStart = report.timeRange.start
+    let windowEnd = report.timeRange.end
+
+    var summaries: [MetricAggregateSummary] = []
+    for stateEntry in report.stateEntries {
+      let states = [StateEntry(domain: stateEntry.state.domain, label: stateEntry.state.label)]
+      for value in stateEntry.values {
+        guard let kind = metricAggregateKind(for: value) else { continue }
+        summaries.append(
+          MetricAggregateSummary(
+            states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind))
+      }
+    }
+    return summaries
+  }
+
+  /// The 4 "hero" kinds (matching the product's stated pillars) get bespoke
+  /// extraction into typed fields. Every other `MetricResult` case falls
+  /// through to `.generic` - captured via the case's own `Codable`
+  /// conformance rather than a hand-written struct, so new MetricKit cases
+  /// in a future OS are captured automatically, not silently dropped.
+  private static func metricAggregateKind(for result: MetricResult) -> MetricAggregateKind? {
+    switch result {
+    case .hangTime(let metric):
+      return .hangTime(buckets: bucketSummaries(metric.histogram))
+    case .hitchTime(let metric):
+      return .hitchTime(
+        ratio: metric.ratio.value,
+        totalHitchMs: metric.totalHitchTime.converted(to: .milliseconds).value,
+        totalAnimationMs: metric.totalAnimationTime.converted(to: .milliseconds).value
+      )
+    case .extendedLaunch(let metric):
+      return .extendedLaunch(buckets: bucketSummaries(metric.histogram))
+    case .peakMemory(let metric):
+      return .peakMemory(megabytes: metric.value.converted(to: .megabytes).value)
+    default:
+      // Case name via reflection (not a hand-maintained switch) so this
+      // stays correct as Apple adds new MetricResult cases over time.
+      let kindName = Mirror(reflecting: result).children.first?.label ?? "unknown"
+      guard let encoded = try? JSONEncoder().encode(result) else { return nil }
+      return .generic(kindName: kindName, encodedValue: encoded)
+    }
+  }
+
+  private static func bucketSummaries(_ histogram: Histogram<UnitDuration>) -> [BucketSummary] {
+    histogram.buckets.map {
+      BucketSummary(
+        lowerBoundMs: $0.lowerBound.converted(to: .milliseconds).value,
+        upperBoundMs: $0.upperBound.converted(to: .milliseconds).value,
+        count: $0.count
+      )
     }
   }
 }

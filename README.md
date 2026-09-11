@@ -60,7 +60,12 @@ Put continuously-changing values here, not in the label — Apple's own guidance
 
 ## Status
 
-Real MetricKit/StateReporting wiring is in — `configure` subscribes to `MetricManager.diagnosticReports` and relays crash, hang, launch, and memory-exception diagnostics. Not yet handled: `MetricManager.metricReports` (aggregated histograms — no slot in the current backend contract), full symbolicated call stacks (payloads carry a small summary, not the full tree), and on-disk persistence for events buffered but not yet uploaded (in-memory only for now — lost if the app terminates before the next upload).
+Real MetricKit/StateReporting wiring is in, both streams:
+
+- **Diagnostics** (`MetricManager.diagnosticReports`) — crash, hang, launch, and memory-exception incidents, delivered immediately when they happen, relayed with the states active at the time.
+- **Metrics** (`MetricManager.metricReports`) — aggregated, windowed data (hang-time histograms, scroll-hitch ratio, launch-time histograms, peak memory), delivered roughly once a day per Apple's own reporting cadence, broken down by state. This is where the interesting numbers are — a dogfooding session may show zero diagnostic events (nothing crashed) while still producing rich metrics data once a daily report lands, and that's expected, not a bug. Every `MetricResult` kind MetricKit provides gets relayed (not just the 4 with dedicated summary stats) — anything outside the built-in set is captured generically, so nothing is silently dropped even before HitchScope has custom handling for it.
+
+Not yet handled: full symbolicated call stacks (payloads carry a small summary, not the full tree), sub-day metric windows (`MetricReport.intervalEntries` — deferred until their time-window anchoring is confirmed empirically), and on-disk persistence for anything buffered but not yet uploaded (in-memory only for now — lost if the app terminates before the next flush).
 
 ## Requirements
 
