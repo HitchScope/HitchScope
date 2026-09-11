@@ -13,4 +13,4 @@ xcodegen generate
 open HitchScopeExample.xcodeproj
 ```
 
-Then build and run on any iOS 16+ simulator. Editing files under `../Sources/HitchScope` picks up immediately — no need to regenerate the project unless you change targets, dependencies, or add/remove files under `HitchScopeExample/`.
+Then build and run on any iOS 27+ simulator. Editing files under `../Sources/HitchScope` picks up immediately — no need to regenerate the project unless you change targets, dependencies, or add/remove files under `HitchScopeExample/`.

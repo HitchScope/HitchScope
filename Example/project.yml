@@ -2,7 +2,7 @@ name: HitchScopeExample
 options:
   bundleIdPrefix: com.hitchscope
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "27.0"
 packages:
   HitchScope:
     path: ..

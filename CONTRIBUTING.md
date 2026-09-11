@@ -8,9 +8,10 @@ HitchScope is an open-source SDK backing a commercial product, maintained by a s
 
 ## Development
 
+This package targets iOS 27+ and is iOS-only, so plain `swift build`/`swift test` won't work (they compile for the macOS host by default). Build and test against an iOS simulator instead:
+
 ```bash
-swift build
-swift test
+xcodebuild test -scheme HitchScope -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
 ```
 
 To test changes against a real app on a simulator, see `Example/README.md`.
