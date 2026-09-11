@@ -12,6 +12,7 @@ actor HitchScopeRuntime {
   private var declaredDomains: Set<String> = []
   private var bridge: MetricKitBridge?
   private var buffer: [IngestEvent] = []
+  private var metricBuffer: [MetricAggregateIngestEvent] = []
 
   /// Set right before a guard's early return in `reportState`/
   /// `updateVolatileMetadata` — a lightweight, test-only observability
@@ -93,6 +94,18 @@ actor HitchScopeRuntime {
     await flush()
   }
 
+  /// Metric aggregates arrive as a whole `MetricReport` at once (roughly
+  /// daily), already batched by the caller — appended and flushed together
+  /// rather than triggering one flush per value.
+  func enqueueMetrics(_ events: [MetricAggregateIngestEvent]) async {
+    guard !events.isEmpty else { return }
+    metricBuffer.append(contentsOf: events)
+    if metricBuffer.count > Self.bufferLimit {
+      metricBuffer.removeFirst(metricBuffer.count - Self.bufferLimit)
+    }
+    await flushMetrics()
+  }
+
   private func flush() async {
     guard let apiKey, !buffer.isEmpty else { return }
     let client = IngestClient(baseURL: Self.baseURL, apiKey: apiKey)
@@ -111,6 +124,26 @@ actor HitchScopeRuntime {
     case .failure(let error):
       os_log(
         .error, log: Self.log, "flush failed, will retry on next event: %{public}@",
+        String(describing: error))
+    }
+  }
+
+  private func flushMetrics() async {
+    guard let apiKey, !metricBuffer.isEmpty else { return }
+    let client = IngestClient(baseURL: Self.baseURL, apiKey: apiKey)
+    let pending = metricBuffer
+    let result = await client.sendMetrics(
+      appVersion: DeviceMetadata.appVersion,
+      osVersion: DeviceMetadata.osVersion,
+      deviceModel: DeviceMetadata.deviceModel,
+      metrics: pending
+    )
+    switch result {
+    case .success:
+      metricBuffer.removeFirst(min(pending.count, metricBuffer.count))
+    case .failure(let error):
+      os_log(
+        .error, log: Self.log, "metrics flush failed, will retry on next report: %{public}@",
         String(describing: error))
     }
   }

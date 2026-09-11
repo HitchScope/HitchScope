@@ -11,7 +11,7 @@ public enum EventKind: String, Codable, Sendable {
 /// One state-reporting domain/label pair active when an event occurred.
 /// Mirrors `MetricManager.ReportedState`, but plain and Codable so it can
 /// cross the network and be constructed in tests without touching MetricKit.
-struct StateEntry: Codable, Sendable {
+struct StateEntry: Codable, Sendable, Equatable {
   let domain: String
   let label: String
 }

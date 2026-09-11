@@ -1,6 +1,6 @@
 import Foundation
 
-/// POSTs batches of events to hitchscope-backend's `/v1/ingest`. In-memory
+/// POSTs batches to hitchscope-backend's ingestion endpoints. In-memory
 /// only — no persistence, no backoff, one immediate retry on a transient
 /// failure. Buffered-but-unsent events are lost if the app terminates before
 /// the next flush; an accepted v1 limit, not an oversight.
@@ -34,23 +34,40 @@ struct IngestClient: Sendable {
     var totalAccepted = 0
     for chunk in events.chunked(into: 500) {
       let request = IngestRequest(
-        appVersion: appVersion,
-        osVersion: osVersion,
-        deviceModel: deviceModel,
-        events: chunk
-      )
-      switch await sendOnce(request) {
-      case .success(let accepted):
-        totalAccepted += accepted
-      case .failure(let error):
-        return .failure(error)
+        appVersion: appVersion, osVersion: osVersion, deviceModel: deviceModel, events: chunk)
+      switch await postWithRetry(path: "v1/ingest", body: request) {
+      case .success(let accepted): totalAccepted += accepted
+      case .failure(let error): return .failure(error)
       }
     }
     return .success(totalAccepted)
   }
 
-  private func sendOnce(_ request: IngestRequest) async -> Result<Int, IngestError> {
-    let result = await attempt(request)
+  /// Same shape as `send`, for the separate metric-aggregates stream (a
+  /// different endpoint, not a merged payload — matches the SDK's two
+  /// independent `AsyncSequence`s and avoids coupling their batching cadence).
+  func sendMetrics(
+    appVersion: String, osVersion: String, deviceModel: String,
+    metrics: [MetricAggregateIngestEvent]
+  )
+    async -> Result<Int, IngestError>
+  {
+    var totalAccepted = 0
+    for chunk in metrics.chunked(into: 500) {
+      let request = MetricAggregateIngestRequest(
+        appVersion: appVersion, osVersion: osVersion, deviceModel: deviceModel, metrics: chunk)
+      switch await postWithRetry(path: "v1/ingest-metrics", body: request) {
+      case .success(let accepted): totalAccepted += accepted
+      case .failure(let error): return .failure(error)
+      }
+    }
+    return .success(totalAccepted)
+  }
+
+  private func postWithRetry<Body: Encodable>(path: String, body: Body) async -> Result<
+    Int, IngestError
+  > {
+    let result = await attempt(path: path, body: body)
     switch result {
     case .success:
       return result
@@ -58,18 +75,19 @@ struct IngestClient: Sendable {
       // Not retryable — the key is wrong, retrying won't help.
       return result
     case .failure(.transportError), .failure(.serverError):
-      return await attempt(request)
+      return await attempt(path: path, body: body)
     }
   }
 
-  private func attempt(_ request: IngestRequest) async -> Result<Int, IngestError> {
-    var urlRequest = URLRequest(url: baseURL.appendingPathComponent("v1/ingest"))
+  private func attempt<Body: Encodable>(path: String, body: Body) async -> Result<Int, IngestError>
+  {
+    var urlRequest = URLRequest(url: baseURL.appendingPathComponent(path))
     urlRequest.httpMethod = "POST"
     urlRequest.setValue("application/json", forHTTPHeaderField: "content-type")
     urlRequest.setValue(apiKey, forHTTPHeaderField: "x-api-key")
 
     do {
-      urlRequest.httpBody = try encoder.encode(request)
+      urlRequest.httpBody = try encoder.encode(body)
     } catch {
       return .failure(.transportError(error))
     }
