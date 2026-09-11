@@ -1,12 +1,15 @@
 import Foundation
 import MetricKit
 import StateReporting
+import os.log
 
 /// The only file that imports `MetricKit`/`StateReporting`. Owns the
 /// `MetricManager` (constructed once with every domain declared at
 /// `configure`), one `StateReporter` per declared domain, and the task
 /// consuming `diagnosticReports`.
 actor MetricKitBridge {
+  private static let log = OSLog(subsystem: "com.hitchscope.sdk", category: "MetricKitBridge")
+
   private let manager: MetricManager
   private var reporters:
     [String: StateReporter<HitchScopeMetadataDictionary, HitchScopeMetadataDictionary>] = [:]
@@ -30,9 +33,13 @@ actor MetricKitBridge {
 
   func start() {
     guard consumeTask == nil else { return }
+    os_log(.info, log: Self.log, "started consuming diagnosticReports/metricReports")
     consumeTask = Task { [manager, sink] in
       for await report in manager.diagnosticReports {
-        for summary in Self.summarize(report) {
+        let summaries = Self.summarize(report)
+        let kindName = Mirror(reflecting: report.result).children.first?.label ?? "unknown"
+        os_log(.info, log: Self.log, "received diagnosticReport: kind=%{public}@", kindName)
+        for summary in summaries {
           await sink.enqueue(EventMapper.map(summary))
         }
       }
@@ -42,7 +49,11 @@ actor MetricKitBridge {
         // Metrics arrive as a whole report at once (roughly daily, per
         // Apple's own docs) - batch the whole report into one flush rather
         // than one per value, keeping each ingest payload coherent.
-        let events = Self.summarizeMetrics(report).map(MetricAggregateMapper.map)
+        let summaries = Self.summarizeMetrics(report)
+        os_log(
+          .info, log: Self.log, "received metricReport: %d state entries, %d summaries",
+          report.stateEntries.count, summaries.count)
+        let events = summaries.map(MetricAggregateMapper.map)
         await sink.enqueueMetrics(events)
       }
     }
