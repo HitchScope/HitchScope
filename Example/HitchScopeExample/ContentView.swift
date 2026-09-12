@@ -24,14 +24,32 @@ private func fetchSDKLogLines() -> [String] {
     }
 }
 
+/// Same path `MetricKitBridge` writes captured fixtures to (duplicated, not
+/// shared as SDK API - this capture mechanism is temporary scaffolding, see
+/// the MetricKit fixture-test-harness plan).
+private let fixturesDirectory =
+    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("HitchScopeFixtures", isDirectory: true)
+
+private func fetchCapturedFixtureCount() -> Int {
+    let files = try? FileManager.default.contentsOfDirectory(
+        at: fixturesDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+    return files?.count ?? 0
+}
+
 struct ContentView: View {
     @State private var lastAction: String = "No action taken yet."
     @State private var logLines: [String] = []
+    @State private var capturedFixtureCount: Int = 0
 
     private func refreshLogLines() {
         Task.detached {
             let lines = fetchSDKLogLines()
-            await MainActor.run { logLines = lines }
+            let fixtureCount = fetchCapturedFixtureCount()
+            await MainActor.run {
+                logLines = lines
+                capturedFixtureCount = fixtureCount
+            }
         }
     }
 
@@ -44,6 +62,16 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+
+            Text(
+                capturedFixtureCount == 0
+                    ? "No fixtures captured yet"
+                    : "Captured fixtures: \(capturedFixtureCount) (Xcode → Devices & Simulators → installed app → Download Container)"
+            )
+            .font(.caption2)
+            .foregroundStyle(capturedFixtureCount == 0 ? Color.gray : Color.green)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal)
 
             VStack(spacing: 8) {
                 Button("Report state: home") {
