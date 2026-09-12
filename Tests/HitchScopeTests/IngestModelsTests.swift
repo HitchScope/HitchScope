@@ -82,6 +82,22 @@ final class IngestModelsTests: XCTestCase {
     }
   }
 
+  func testStateEntryDurationMsRoundTrips() throws {
+    let state = StateEntry(domain: "com.app.screen", label: "home", durationMs: 19_256.77)
+    let data = try JSONEncoder().encode(state)
+    let decoded = try JSONDecoder().decode(StateEntry.self, from: data)
+
+    XCTAssertEqual(decoded.durationMs, 19_256.77)
+  }
+
+  func testStateEntryOmitsDurationMsKeyWhenNil() throws {
+    let state = StateEntry(domain: "com.app.screen", label: "Checkout")
+    let data = try JSONEncoder().encode(state)
+    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+    XCTAssertNil(json["durationMs"])
+  }
+
   func testJSONValueRoundTripsHeterogeneousTypes() throws {
     let value: [String: JSONValue] = [
       "s": .string("x"),

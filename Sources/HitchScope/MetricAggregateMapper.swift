@@ -175,6 +175,7 @@ enum MetricAggregateMapper {
     raw["lowPowerModeEnabled"] = .bool(summary.lowPowerModeEnabled)
     raw["isTestFlightApp"] = .bool(summary.isTestFlightApp)
     raw["hasExceededStateLimit"] = .bool(summary.hasExceededStateLimit)
+    if let osBuildNumber = summary.osBuildNumber { raw["osBuildNumber"] = .string(osBuildNumber) }
 
     return MetricAggregateIngestEvent(
       kind: kind,

@@ -68,11 +68,14 @@ struct MetricAggregateSummary: Sendable {
   let lowPowerModeEnabled: Bool
   let isTestFlightApp: Bool
   let hasExceededStateLimit: Bool
+  /// From `environment.osVersion.buildNumber` - see `DiagnosticSummary`'s
+  /// field of the same name for why this is worth the extra string.
+  let osBuildNumber: String?
 
   init(
     states: [StateEntry], windowStart: Date, windowEnd: Date, kind: MetricAggregateKind,
     lowPowerModeEnabled: Bool = false, isTestFlightApp: Bool = false,
-    hasExceededStateLimit: Bool = false
+    hasExceededStateLimit: Bool = false, osBuildNumber: String? = nil
   ) {
     self.states = states
     self.windowStart = windowStart
@@ -81,5 +84,6 @@ struct MetricAggregateSummary: Sendable {
     self.lowPowerModeEnabled = lowPowerModeEnabled
     self.isTestFlightApp = isTestFlightApp
     self.hasExceededStateLimit = hasExceededStateLimit
+    self.osBuildNumber = osBuildNumber
   }
 }
