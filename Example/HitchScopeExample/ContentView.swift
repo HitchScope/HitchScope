@@ -3,6 +3,7 @@ import HitchScope
 import OSLog
 
 private let domain = "com.hitchscope.example.screen"
+private let experimentDomain = "com.hitchscope.example.experiment.checkout_redesign"
 
 /// Reads back the SDK's own `os_log` output (subsystem "com.hitchscope.sdk")
 /// from this process's log store, so the SDK's diagnostic/metric/flush
@@ -40,6 +41,7 @@ struct ContentView: View {
     @State private var lastAction: String = "No action taken yet."
     @State private var logLines: [String] = []
     @State private var capturedFixtureURLs: [URL] = []
+    @State private var cartItems: Int = 0
 
     private func refreshLogLines() {
         Task.detached {
@@ -93,6 +95,40 @@ struct ContentView: View {
                     HitchScope.reportState(domain, label: nil)
                     lastAction = "Cleared state on \(domain)"
                 }
+            }
+            .buttonStyle(.borderedProminent)
+
+            // Domains are independent - this one tracks an A/B experiment
+            // variant, simultaneously with whatever's active on `domain`
+            // above. Neither is privileged; MetricKit attaches both to
+            // every diagnostic/metric report at once.
+            VStack(spacing: 8) {
+                Button("Report experiment: variant_b") {
+                    HitchScope.reportState(experimentDomain, label: "variant_b")
+                    lastAction = "Reported state \"variant_b\" on \(experimentDomain)"
+                }
+                Button("Report state: home (with stableMetadata)") {
+                    // Stable metadata is part of the state's identity, not
+                    // just extra context - a different userTier here is a
+                    // new transition even though the label is still "home".
+                    HitchScope.reportState(
+                        domain, label: "home", stableMetadata: ["userTier": .init("premium")])
+                    lastAction = "Reported state \"home\" on \(domain) with stableMetadata"
+                }
+                Button("Update cart items metadata (+1)") {
+                    // Updates volatile metadata on whatever state is
+                    // currently active on `domain`, without starting a new
+                    // transition - calling reportState again here instead
+                    // would no-op if the label/stableMetadata didn't also
+                    // change, silently dropping this update.
+                    cartItems += 1
+                    HitchScope.updateVolatileMetadata(domain, ["cartItems": .init(cartItems)])
+                    lastAction = "Updated volatile metadata cartItems=\(cartItems) on \(domain)"
+                }
+            }
+            .buttonStyle(.borderedProminent)
+
+            VStack(spacing: 8) {
                 Button("Trigger 2s main-thread hang", role: .destructive) {
                     lastAction = "Blocking the main thread for 2s to trigger a real MetricKit hang diagnostic…"
                     // Deliberately synchronous on the main thread — this is
