@@ -17,13 +17,10 @@ import XCTest
 /// trigger coverage). Don't read "all fixture tests pass" as "every
 /// diagnostic kind is validated against real data" - it isn't, yet.
 ///
-/// This also caught a real bug: frame extraction only ever read the single
-/// outermost frame of `threads.first`, not the attributed thread, and never
-/// descended into `subFrames`. The 4 real memoryException fixtures make
-/// this concrete: the OS-attributed thread is index 2, 4, 2, and 1
-/// respectively - never index 0 - so the old code would have picked the
-/// wrong thread's stack entirely, not just truncated the right one. Index 1
-/// in particular is the boundary case an off-by-one fix could still miss.
+/// No call-stack frame extraction here (or in `MetricKitBridge` at all) - a
+/// MetricKit frame is just a binary UUID + offset, meaningless without a
+/// dSYM to symbolicate it, and Xcode Organizer already gives that for free
+/// on any TestFlight/App Store build. See the future-roadmap doc.
 final class MetricKitBridgeFixtureTests: XCTestCase {
   private func loadFixture(_ name: String) throws -> DiagnosticReport {
     let url = try XCTUnwrap(
@@ -33,50 +30,19 @@ final class MetricKitBridgeFixtureTests: XCTestCase {
     return try JSONDecoder().decode(DiagnosticReport.self, from: data)
   }
 
-  /// Every leaf value here was independently extracted from the raw fixture
-  /// JSON (walking `subFrames` in Python, picking the OS-attributed thread),
-  /// not derived from `MetricKitBridge`'s own logic - this is what makes it
-  /// an actual check of correctness rather than a change-detector that
-  /// would pass just as well if the fix were subtly wrong.
-  private struct ExpectedLeafFrame {
+  private struct ExpectedKind {
     let kind: String
-    let attributedThreadIndex: Int
-    let leafBinaryUUID: String
-    let leafOffset: UInt64
     let numStates: Int
   }
 
-  private let expectations: [String: ExpectedLeafFrame] = [
-    "diagnostic-20260912T110745.770": ExpectedLeafFrame(
-      kind: "memoryException", attributedThreadIndex: 2,
-      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 0),
-    "diagnostic-20260912T110757.564": ExpectedLeafFrame(
-      kind: "crash", attributedThreadIndex: 0,
-      leafBinaryUUID: "D3F59B02-EE07-371B-B091-3F150A078ED8", leafOffset: 21944, numStates: 0),
-    "diagnostic-20260912T131926.292": ExpectedLeafFrame(
-      kind: "memoryException", attributedThreadIndex: 4,
-      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 0),
-    "diagnostic-20260912T172415.580": ExpectedLeafFrame(
-      kind: "crash", attributedThreadIndex: 0,
-      leafBinaryUUID: "D3F59B02-EE07-371B-B091-3F150A078ED8", leafOffset: 21944, numStates: 2),
-    "diagnostic-20260912T172435.024": ExpectedLeafFrame(
-      kind: "memoryException", attributedThreadIndex: 2,
-      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 3),
-    "diagnostic-20260912T181913.431": ExpectedLeafFrame(
-      kind: "memoryException", attributedThreadIndex: 1,
-      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 4),
+  private let expectations: [String: ExpectedKind] = [
+    "diagnostic-20260912T110745.770": ExpectedKind(kind: "memoryException", numStates: 0),
+    "diagnostic-20260912T110757.564": ExpectedKind(kind: "crash", numStates: 0),
+    "diagnostic-20260912T131926.292": ExpectedKind(kind: "memoryException", numStates: 0),
+    "diagnostic-20260912T172415.580": ExpectedKind(kind: "crash", numStates: 2),
+    "diagnostic-20260912T172435.024": ExpectedKind(kind: "memoryException", numStates: 3),
+    "diagnostic-20260912T181913.431": ExpectedKind(kind: "memoryException", numStates: 4),
   ]
-
-  private func topFrames(for summary: DiagnosticSummary) -> [FrameSummary]? {
-    switch summary.kind {
-    case .crash(let crash): return crash.topFrames
-    case .memoryException(let exception): return exception.topFrames
-    case .hang(let hang): return hang.topFrames
-    case .appLaunch(let launch): return launch.topFrames
-    case .cpuException(let exception): return exception.topFrames
-    case .diskWriteException(let exception): return exception.topFrames
-    }
-  }
 
   private func kindName(for summary: DiagnosticSummary) -> String {
     switch summary.kind {
@@ -89,7 +55,7 @@ final class MetricKitBridgeFixtureTests: XCTestCase {
     }
   }
 
-  func testEveryFixtureParsesIntoTheExpectedKindWithTheRealLeafFrameFirst() throws {
+  func testEveryFixtureParsesIntoTheExpectedKind() throws {
     for (name, expected) in expectations {
       let report = try loadFixture(name)
       let summaries = MetricKitBridge.summarize(report)
@@ -98,18 +64,6 @@ final class MetricKitBridgeFixtureTests: XCTestCase {
 
       XCTAssertEqual(kindName(for: summary), expected.kind, "\(name): wrong DiagnosticKind")
       XCTAssertEqual(summary.states.count, expected.numStates, "\(name): wrong state count")
-
-      let frames = try XCTUnwrap(topFrames(for: summary), "\(name): no topFrames case matched")
-      let firstFrame = try XCTUnwrap(frames.first, "\(name): topFrames is empty")
-      XCTAssertEqual(
-        firstFrame.binaryUUID, expected.leafBinaryUUID,
-        "\(name): topFrames[0] should be the real leaf frame from the attributed thread (index \(expected.attributedThreadIndex)), not the wrong thread or an outer frame"
-      )
-      XCTAssertEqual(
-        firstFrame.offset, expected.leafOffset, "\(name): topFrames[0].offset mismatch")
-      XCTAssertGreaterThan(
-        frames.count, 1,
-        "\(name): should have walked subFrames for real depth, not just the single root frame")
     }
   }
 

@@ -143,50 +143,31 @@ actor MetricKitBridge {
         exceptionType: diagnostic.exceptionType,
         exceptionCode: diagnostic.exceptionCode,
         signal: diagnostic.signal,
-        virtualMemoryRegionInfo: diagnostic.virtualMemoryRegionInfo,
-        exceptionReason: diagnostic.exceptionReason.map {
-          ExceptionReasonSummary(
-            composedMessage: $0.composedMessage, formatString: $0.formatString,
-            arguments: $0.arguments, exceptionType: $0.exceptionType, className: $0.className,
-            exceptionName: $0.exceptionName)
-        },
-        threadCount: threads.count,
-        topFrames: topFrames(from: diagnostic.callStackTree)
+        threadCount: threads.count
       )
       return summary(.crash(crash))
 
     case .hang(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
       let durationMs = diagnostic.hangDuration.converted(to: .milliseconds).value
-      return summary(
-        .hang(
-          HangSummary(
-            durationMs: durationMs, threadCount: threads.count,
-            topFrames: topFrames(from: diagnostic.callStackTree))))
+      return summary(.hang(HangSummary(durationMs: durationMs, threadCount: threads.count)))
 
     case .appLaunch(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
       let durationMs = diagnostic.launchDuration.converted(to: .milliseconds).value
       return summary(
-        .appLaunch(
-          AppLaunchSummary(
-            durationMs: durationMs, threadCount: threads.count,
-            topFrames: topFrames(from: diagnostic.callStackTree))))
+        .appLaunch(AppLaunchSummary(durationMs: durationMs, threadCount: threads.count)))
 
     case .memoryException(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
-      return summary(
-        .memoryException(
-          MemoryExceptionSummary(
-            threadCount: threads.count, topFrames: topFrames(from: diagnostic.callStackTree))))
+      return summary(.memoryException(MemoryExceptionSummary(threadCount: threads.count)))
 
     case .cpuException(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
       let exception = CPUExceptionSummary(
         totalCPUTimeMs: diagnostic.totalCPUTime.converted(to: .milliseconds).value,
         totalSampledTimeMs: diagnostic.totalSampledTime.converted(to: .milliseconds).value,
-        threadCount: threads.count,
-        topFrames: topFrames(from: diagnostic.callStackTree)
+        threadCount: threads.count
       )
       return summary(.cpuException(exception))
 
@@ -194,55 +175,12 @@ actor MetricKitBridge {
       let threads = diagnostic.callStackTree.callStackThreads
       let exception = DiskWriteExceptionSummary(
         totalBytesWritten: diagnostic.totalBytesWritten.converted(to: .bytes).value,
-        threadCount: threads.count,
-        topFrames: topFrames(from: diagnostic.callStackTree)
+        threadCount: threads.count
       )
       return summary(.diskWriteException(exception))
 
     @unknown default:
       return []
-    }
-  }
-
-  // MARK: - CallStackTree -> [FrameSummary]
-
-  /// Picks the thread MetricKit marked as attributed (the actual crashing/
-  /// hanging thread) rather than assuming it's first in the array. Real
-  /// captured fixtures happened to have the attributed thread at index 0,
-  /// but that's not something to rely on - `threadAttributed` exists
-  /// specifically so callers don't have to guess.
-  private static func attributedThread(in tree: CallStackTree) -> CallStackThread? {
-    let threads = tree.callStackThreads
-    return threads.first(where: { $0.threadAttributed == true }) ?? threads.first
-  }
-
-  /// Walks from a root frame down through `subFrames`, following the
-  /// branch with the highest `sampleCount` at each split (ties/missing
-  /// counts resolve to the first child). Real fixtures show a thread's
-  /// stack is often a single linear chain 50+ frames deep - `rootFrames`
-  /// alone (with no descent into `subFrames`) only ever gave the single
-  /// outermost, least specific frame.
-  private static func deepestPath(from frame: CallStackFrame) -> [CallStackFrame] {
-    var path = [frame]
-    var current = frame
-    while let next = current.subFrames.max(by: { ($0.sampleCount ?? 0) < ($1.sampleCount ?? 0) }) {
-      path.append(next)
-      current = next
-    }
-    return path
-  }
-
-  /// Innermost (crash/hang site) frame first, matching how a symbolicated
-  /// stack trace is conventionally read - frame 0 is where execution
-  /// actually was, not the outermost caller.
-  private static func topFrames(from tree: CallStackTree, limit: Int = 20) -> [FrameSummary] {
-    guard let thread = attributedThread(in: tree),
-      let root = thread.rootFrames.max(by: { ($0.sampleCount ?? 0) < ($1.sampleCount ?? 0) })
-    else { return [] }
-    return deepestPath(from: root).reversed().prefix(limit).map {
-      FrameSummary(
-        binaryUUID: $0.binaryUUID?.uuidString, offset: $0.offsetIntoBinaryTextSegment,
-        sampleCount: $0.sampleCount)
     }
   }
 
