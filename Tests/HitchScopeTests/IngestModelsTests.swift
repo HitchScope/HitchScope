@@ -54,6 +54,32 @@ final class IngestModelsTests: XCTestCase {
     XCTAssertEqual(response.accepted, 12)
   }
 
+  func testStateEntryOmitsMetadataKeyWhenNil() throws {
+    let state = StateEntry(domain: "com.app.screen", label: "Checkout")
+    let data = try JSONEncoder().encode(state)
+    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+    XCTAssertNil(json["metadata"])
+  }
+
+  func testStateEntryMetadataRoundTrips() throws {
+    let state = StateEntry(
+      domain: "com.app.experiment.checkout_redesign", label: "variant_b",
+      metadata: ["userTier": .string("premium"), "cartTotal": .double(49.99)]
+    )
+    let data = try JSONEncoder().encode(state)
+    let decoded = try JSONDecoder().decode(StateEntry.self, from: data)
+
+    XCTAssertEqual(decoded.domain, state.domain)
+    XCTAssertEqual(decoded.label, state.label)
+    guard case .string("premium") = decoded.metadata?["userTier"] else {
+      return XCTFail("expected userTier metadata")
+    }
+    guard case .double(49.99) = decoded.metadata?["cartTotal"] else {
+      return XCTFail("expected cartTotal metadata")
+    }
+  }
+
   func testJSONValueRoundTripsHeterogeneousTypes() throws {
     let value: [String: JSONValue] = [
       "s": .string("x"),

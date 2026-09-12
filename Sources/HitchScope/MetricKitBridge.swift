@@ -113,7 +113,9 @@ actor MetricKitBridge {
   // MARK: - DiagnosticReport -> plain DiagnosticSummary
 
   private static func summarize(_ report: DiagnosticReport) -> [DiagnosticSummary] {
-    let states = report.environment.states.map { StateEntry(domain: $0.domain, label: $0.label) }
+    let states = report.environment.states.map {
+      StateEntry(domain: $0.domain, label: $0.label, metadata: metadataJSON($0.stableMetadata))
+    }
     // `.start` of the report's time window — the closest available
     // approximation of when the underlying incident actually happened.
     let occurredAt = report.timeRange.start
@@ -187,7 +189,11 @@ actor MetricKitBridge {
 
     var summaries: [MetricAggregateSummary] = []
     for stateEntry in report.stateEntries {
-      let states = [StateEntry(domain: stateEntry.state.domain, label: stateEntry.state.label)]
+      let states = [
+        StateEntry(
+          domain: stateEntry.state.domain, label: stateEntry.state.label,
+          metadata: metadataJSON(stateEntry.state.stableMetadata))
+      ]
       for value in stateEntry.values {
         guard let kind = metricAggregateKind(for: value) else { continue }
         summaries.append(
@@ -233,6 +239,35 @@ actor MetricKitBridge {
         upperBoundMs: $0.upperBound.converted(to: .milliseconds).value,
         count: $0.count
       )
+    }
+  }
+
+  // MARK: - ReportedState.stableMetadata -> plain JSONValue
+
+  /// `nil` when empty rather than `[:]` - keeps the wire payload the same
+  /// shape as before for the overwhelmingly common case of no metadata,
+  /// rather than adding an always-present empty object to every state.
+  private static func metadataJSON(
+    _ metadata: [String: ReportableMetadataValue]
+  ) -> [String: JSONValue]? {
+    guard !metadata.isEmpty else { return nil }
+    return metadata.mapValues(jsonValue)
+  }
+
+  private static func jsonValue(_ value: ReportableMetadataValue) -> JSONValue {
+    switch value {
+    case .string(let value):
+      return .string(value)
+    case .date(let value):
+      return .string(ISO8601DateFormatter().string(from: value))
+    case .floatingPoint(let value):
+      return .double(value)
+    case .integer(let value):
+      // Outside Int's range (Int128 can exceed it) - preserve the exact
+      // value as text rather than silently truncating.
+      return Int(exactly: value).map(JSONValue.int) ?? .string(String(value))
+    @unknown default:
+      return .null
     }
   }
 }

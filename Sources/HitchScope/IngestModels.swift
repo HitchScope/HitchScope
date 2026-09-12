@@ -14,11 +14,21 @@ public enum EventKind: String, Codable, Sendable {
 struct StateEntry: Codable, Sendable, Equatable {
   let domain: String
   let label: String
+  /// From `ReportedState.stableMetadata` - nil for metric-aggregate states,
+  /// which carry no metadata concept, and for diagnostics where the app
+  /// never attached any via `reportState(..., stableMetadata:)`.
+  let metadata: [String: JSONValue]?
+
+  init(domain: String, label: String, metadata: [String: JSONValue]? = nil) {
+    self.domain = domain
+    self.label = label
+    self.metadata = metadata
+  }
 }
 
 /// A minimal heterogeneous JSON value, for encoding a diagnostic's
 /// type-specific `payload` dictionary without pulling in a full JSON library.
-enum JSONValue: Codable, Sendable {
+enum JSONValue: Codable, Sendable, Equatable {
   case string(String)
   case int(Int)
   case double(Double)
