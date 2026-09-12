@@ -33,12 +33,15 @@ actor MetricKitBridge {
 
   func start() {
     guard consumeTask == nil else { return }
-    os_log(.info, log: Self.log, "started consuming diagnosticReports/metricReports")
+    // .default throughout this file, not .info - .info only lives in a
+    // volatile memory buffer and is routinely evicted before anyone looks,
+    // especially outside a live Xcode session; .default actually persists.
+    os_log(.default, log: Self.log, "started consuming diagnosticReports/metricReports")
     consumeTask = Task { [manager, sink] in
       for await report in manager.diagnosticReports {
         let summaries = Self.summarize(report)
         let kindName = Mirror(reflecting: report.result).children.first?.label ?? "unknown"
-        os_log(.info, log: Self.log, "received diagnosticReport: kind=%{public}@", kindName)
+        os_log(.default, log: Self.log, "received diagnosticReport: kind=%{public}@", kindName)
         for summary in summaries {
           await sink.enqueue(EventMapper.map(summary))
         }
@@ -51,7 +54,7 @@ actor MetricKitBridge {
         // than one per value, keeping each ingest payload coherent.
         let summaries = Self.summarizeMetrics(report)
         os_log(
-          .info, log: Self.log, "received metricReport: %d state entries, %d summaries",
+          .default, log: Self.log, "received metricReport: %d state entries, %d summaries",
           report.stateEntries.count, summaries.count)
         let events = summaries.map(MetricAggregateMapper.map)
         await sink.enqueueMetrics(events)
