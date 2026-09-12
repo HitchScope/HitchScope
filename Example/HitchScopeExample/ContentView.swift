@@ -28,6 +28,13 @@ struct ContentView: View {
     @State private var lastAction: String = "No action taken yet."
     @State private var logLines: [String] = []
 
+    private func refreshLogLines() {
+        Task.detached {
+            let lines = fetchSDKLogLines()
+            await MainActor.run { logLines = lines }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             Text("HitchScope Example")
@@ -62,6 +69,33 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
 
+            VStack(spacing: 8) {
+                Text("These terminate the app immediately — the diagnostic only shows up after you relaunch, not before.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Trigger crash", role: .destructive) {
+                    // fatalError terminates synchronously - lastAction would
+                    // never get a chance to render, so the warning above is
+                    // static instead of a status update like the other buttons.
+                    fatalError("HitchScope Example: deliberate crash trigger")
+                }
+                Button("Trigger memory exception", role: .destructive) {
+                    lastAction =
+                        "Allocating memory until the OS terminates the app — relaunch afterward to check for a memory exception diagnostic."
+                    // Off the main thread so this reads as memory pressure,
+                    // not another main-thread hang - the OS jetsam-kills the
+                    // process once it exceeds its memory limit.
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        var blocks: [[UInt8]] = []
+                        while true {
+                            blocks.append([UInt8](repeating: 0xFF, count: 50_000_000))
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+
             Text(lastAction)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -73,7 +107,7 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Button("Refresh") { logLines = fetchSDKLogLines() }
+                Button("Refresh") { refreshLogLines() }
                     .font(.caption2)
             }
             .padding(.horizontal)
@@ -100,12 +134,15 @@ struct ContentView: View {
             .background(.black.opacity(0.05))
         }
         .padding()
-        .onAppear { logLines = fetchSDKLogLines() }
+        .onAppear { refreshLogLines() }
         // The log store doesn't push updates, so poll while this view is
         // visible rather than trying to observe it — simplest option for a
-        // dev-only debug view.
+        // dev-only debug view. fetchSDKLogLines() does real OSLogStore I/O,
+        // so it's dispatched off the main thread — running it inline here
+        // every 1.5s was stalling the UI the whole time this view is up,
+        // independent of the hang button.
         .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in
-            logLines = fetchSDKLogLines()
+            refreshLogLines()
         }
     }
 }

@@ -40,8 +40,11 @@ actor HitchScopeRuntime {
     self.apiKey = apiKey
     self.declaredDomains = trackedStates
 
+    // .default, not .info - .info is only kept in a volatile memory buffer
+    // and routinely evicted before anyone looks, especially outside a live
+    // Xcode session; .default is what actually persists to disk.
     os_log(
-      .info, log: Self.log, "configured with domains: %{public}@",
+      .default, log: Self.log, "configured with domains: %{public}@",
       trackedStates.sorted().joined(separator: ", "))
 
     let bridge = MetricKitBridge(domains: trackedStates, sink: self)
@@ -125,7 +128,7 @@ actor HitchScopeRuntime {
       // Only clear what we actually sent — more may have been enqueued
       // concurrently while this flush was in flight.
       buffer.removeFirst(min(pending.count, buffer.count))
-      os_log(.info, log: Self.log, "flushed %d diagnostic event(s)", accepted)
+      os_log(.default, log: Self.log, "flushed %d diagnostic event(s)", accepted)
     case .failure(let error):
       os_log(
         .error, log: Self.log, "flush failed, will retry on next event: %{public}@",
@@ -146,7 +149,7 @@ actor HitchScopeRuntime {
     switch result {
     case .success(let accepted):
       metricBuffer.removeFirst(min(pending.count, metricBuffer.count))
-      os_log(.info, log: Self.log, "flushed %d metric aggregate(s)", accepted)
+      os_log(.default, log: Self.log, "flushed %d metric aggregate(s)", accepted)
     case .failure(let error):
       os_log(
         .error, log: Self.log, "metrics flush failed, will retry on next report: %{public}@",
