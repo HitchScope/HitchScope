@@ -8,13 +8,42 @@ struct BucketSummary: Sendable {
   let count: Int
 }
 
+/// Termination-cause breakdown shared by `ForegroundTerminationMetric` (a
+/// subset of these fields) and `BackgroundTerminationMetric` (all of them) -
+/// one struct for both, with the foreground-only fields left `nil` when
+/// built from a `ForegroundTerminationMetric`, answers "why did the OS kill
+/// this state" the same way crash/memory diagnostics answer it for
+/// individual incidents.
+struct TerminationSummary: Sendable {
+  let normalCount: Int
+  let memoryLimitCount: Int
+  let badAccessCount: Int
+  let abnormalCount: Int
+  let illegalInstructionCount: Int
+  let watchdogCount: Int
+  /// Background-only fields - `nil` for a foreground breakdown.
+  let highCPUCount: Int?
+  let systemPressureCount: Int?
+  let fileLockCount: Int?
+  let taskTimeoutCount: Int?
+}
+
 enum MetricAggregateKind: Sendable {
   case hangTime(buckets: [BucketSummary])
   case hitchTime(ratio: Double, totalHitchMs: Double, totalAnimationMs: Double)
   case extendedLaunch(buckets: [BucketSummary])
   case peakMemory(megabytes: Double)
-  /// Every other `MetricResult` case (there are ~20: CPU, GPU, network,
-  /// disk, location, background time, signposts, etc.) — captured
+  case cpuTime(ms: Double)
+  case cpuInstructionsCount(count: Int)
+  case gpuTime(ms: Double)
+  case totalWiFiUpload(bytes: Double)
+  case totalWiFiDownload(bytes: Double)
+  case totalCellularUpload(bytes: Double)
+  case totalCellularDownload(bytes: Double)
+  case foregroundTermination(TerminationSummary)
+  case backgroundTermination(TerminationSummary)
+  /// Every other `MetricResult` case (there are ~17 left: disk, location,
+  /// signposts, background/foreground time totals, etc.) — captured
   /// generically rather than mapped case-by-case. `kindName` comes from
   /// runtime reflection on the enum case (not hand-maintained, so a future
   /// OS adding new cases needs no code change here), `encodedValue` is the

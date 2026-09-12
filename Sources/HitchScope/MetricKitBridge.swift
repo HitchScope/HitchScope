@@ -259,6 +259,45 @@ actor MetricKitBridge {
       return .extendedLaunch(buckets: bucketSummaries(metric.histogram))
     case .peakMemory(let metric):
       return .peakMemory(megabytes: metric.value.converted(to: .megabytes).value)
+    case .cpuTime(let metric):
+      return .cpuTime(ms: metric.value.converted(to: .milliseconds).value)
+    case .cpuInstructionsCount(let metric):
+      return .cpuInstructionsCount(count: metric.value)
+    case .gpuTime(let metric):
+      return .gpuTime(ms: metric.value.converted(to: .milliseconds).value)
+    case .totalWiFiUpload(let metric):
+      return .totalWiFiUpload(bytes: metric.value.converted(to: .bytes).value)
+    case .totalWiFiDownload(let metric):
+      return .totalWiFiDownload(bytes: metric.value.converted(to: .bytes).value)
+    case .totalCellularUpload(let metric):
+      return .totalCellularUpload(bytes: metric.value.converted(to: .bytes).value)
+    case .totalCellularDownload(let metric):
+      return .totalCellularDownload(bytes: metric.value.converted(to: .bytes).value)
+    case .foregroundTermination(let metric):
+      return .foregroundTermination(
+        TerminationSummary(
+          normalCount: metric.normalTerminationCount,
+          memoryLimitCount: metric.memoryLimitTerminationCount,
+          badAccessCount: metric.badAccessTerminationCount,
+          abnormalCount: metric.abnormalTerminationCount,
+          illegalInstructionCount: metric.illegalInstructionTerminationCount,
+          watchdogCount: metric.watchdogTerminationCount,
+          highCPUCount: nil, systemPressureCount: nil, fileLockCount: nil, taskTimeoutCount: nil
+        ))
+    case .backgroundTermination(let metric):
+      return .backgroundTermination(
+        TerminationSummary(
+          normalCount: metric.normalTerminationCount,
+          memoryLimitCount: metric.memoryLimitTerminationCount,
+          badAccessCount: metric.badAccessTerminationCount,
+          abnormalCount: metric.abnormalTerminationCount,
+          illegalInstructionCount: metric.illegalInstructionTerminationCount,
+          watchdogCount: metric.watchdogTerminationCount,
+          highCPUCount: metric.highCPUTerminationCount,
+          systemPressureCount: metric.systemPressureTerminationCount,
+          fileLockCount: metric.fileLockTerminationCount,
+          taskTimeoutCount: metric.taskTimeoutTerminationCount
+        ))
     default:
       // Case name via reflection (not a hand-maintained switch) so this
       // stays correct as Apple adds new MetricResult cases over time.
