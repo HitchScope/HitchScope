@@ -31,24 +31,23 @@ private let fixturesDirectory =
     FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("HitchScopeFixtures", isDirectory: true)
 
-private func fetchCapturedFixtureCount() -> Int {
-    let files = try? FileManager.default.contentsOfDirectory(
-        at: fixturesDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-    return files?.count ?? 0
+private func fetchCapturedFixtureURLs() -> [URL] {
+    (try? FileManager.default.contentsOfDirectory(
+        at: fixturesDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
 }
 
 struct ContentView: View {
     @State private var lastAction: String = "No action taken yet."
     @State private var logLines: [String] = []
-    @State private var capturedFixtureCount: Int = 0
+    @State private var capturedFixtureURLs: [URL] = []
 
     private func refreshLogLines() {
         Task.detached {
             let lines = fetchSDKLogLines()
-            let fixtureCount = fetchCapturedFixtureCount()
+            let fixtureURLs = fetchCapturedFixtureURLs()
             await MainActor.run {
                 logLines = lines
-                capturedFixtureCount = fixtureCount
+                capturedFixtureURLs = fixtureURLs
             }
         }
     }
@@ -63,13 +62,21 @@ struct ContentView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            Text(
-                capturedFixtureCount == 0
-                    ? "No fixtures captured yet"
-                    : "Captured fixtures: \(capturedFixtureCount) (Xcode → Devices & Simulators → installed app → Download Container)"
-            )
-            .font(.caption2)
-            .foregroundStyle(capturedFixtureCount == 0 ? Color.gray : Color.green)
+            VStack(spacing: 4) {
+                Text(
+                    capturedFixtureURLs.isEmpty
+                        ? "No fixtures captured yet"
+                        : "Captured fixtures: \(capturedFixtureURLs.count)"
+                )
+                .font(.caption2)
+                .foregroundStyle(capturedFixtureURLs.isEmpty ? Color.gray : Color.green)
+                if !capturedFixtureURLs.isEmpty {
+                    ShareLink(items: capturedFixtureURLs) {
+                        Label("Share fixtures", systemImage: "square.and.arrow.up")
+                    }
+                    .font(.caption2)
+                }
+            }
             .multilineTextAlignment(.center)
             .padding(.horizontal)
 
