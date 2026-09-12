@@ -31,24 +31,23 @@ private let fixturesDirectory =
     FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("HitchScopeFixtures", isDirectory: true)
 
-private func fetchCapturedFixtureCount() -> Int {
-    let files = try? FileManager.default.contentsOfDirectory(
-        at: fixturesDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-    return files?.count ?? 0
+private func fetchCapturedFixtureURLs() -> [URL] {
+    (try? FileManager.default.contentsOfDirectory(
+        at: fixturesDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
 }
 
 struct ContentView: View {
     @State private var lastAction: String = "No action taken yet."
     @State private var logLines: [String] = []
-    @State private var capturedFixtureCount: Int = 0
+    @State private var capturedFixtureURLs: [URL] = []
 
     private func refreshLogLines() {
         Task.detached {
             let lines = fetchSDKLogLines()
-            let fixtureCount = fetchCapturedFixtureCount()
+            let fixtureURLs = fetchCapturedFixtureURLs()
             await MainActor.run {
                 logLines = lines
-                capturedFixtureCount = fixtureCount
+                capturedFixtureURLs = fixtureURLs
             }
         }
     }
@@ -57,19 +56,27 @@ struct ContentView: View {
         VStack(spacing: 16) {
             Text("HitchScope Example")
                 .font(.headline)
-            Text("Used for exercising SDK changes against the real MetricKit/StateReporting pipeline on a device. Diagnostics (crash/hang/launch/memory) deliver immediately after an incident; metric aggregates (hitch ratio, etc.) deliver in a daily report.")
+            Text("Used for exercising SDK changes against the real MetricKit/StateReporting pipeline on a device. In testing, crash/memory diagnostics have shown up within under a minute of relaunching; a hang diagnostic hasn't been confirmed to arrive yet. Metric aggregates (hitch ratio, etc.) deliver in a daily report.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            Text(
-                capturedFixtureCount == 0
-                    ? "No fixtures captured yet"
-                    : "Captured fixtures: \(capturedFixtureCount) (Xcode → Devices & Simulators → installed app → Download Container)"
-            )
-            .font(.caption2)
-            .foregroundStyle(capturedFixtureCount == 0 ? Color.gray : Color.green)
+            VStack(spacing: 4) {
+                Text(
+                    capturedFixtureURLs.isEmpty
+                        ? "No fixtures captured yet"
+                        : "Captured fixtures: \(capturedFixtureURLs.count)"
+                )
+                .font(.caption2)
+                .foregroundStyle(capturedFixtureURLs.isEmpty ? Color.gray : Color.green)
+                if !capturedFixtureURLs.isEmpty {
+                    ShareLink(items: capturedFixtureURLs) {
+                        Label("Share fixtures", systemImage: "square.and.arrow.up")
+                    }
+                    .font(.caption2)
+                }
+            }
             .multilineTextAlignment(.center)
             .padding(.horizontal)
 
@@ -92,7 +99,8 @@ struct ContentView: View {
                     // how you produce a genuine MXHangDiagnostic on device;
                     // there's no way to fake one via the SDK's own API.
                     Thread.sleep(forTimeInterval: 2)
-                    lastAction = "Hang triggered. Diagnostic report delivery is async and may take a moment."
+                    lastAction =
+                        "Hang triggered. Unlike crash/memory (confirmed within a minute of relaunching in testing), a hang diagnostic hasn't been confirmed to arrive through this pipeline yet - no known timing to expect."
                 }
             }
             .buttonStyle(.borderedProminent)
