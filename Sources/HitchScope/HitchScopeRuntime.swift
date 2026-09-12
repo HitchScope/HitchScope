@@ -40,6 +40,10 @@ actor HitchScopeRuntime {
     self.apiKey = apiKey
     self.declaredDomains = trackedStates
 
+    os_log(
+      .info, log: Self.log, "configured with domains: %{public}@",
+      trackedStates.sorted().joined(separator: ", "))
+
     let bridge = MetricKitBridge(domains: trackedStates, sink: self)
     self.bridge = bridge
     Task { await bridge.start() }
@@ -117,10 +121,11 @@ actor HitchScopeRuntime {
       events: pending
     )
     switch result {
-    case .success:
+    case .success(let accepted):
       // Only clear what we actually sent — more may have been enqueued
       // concurrently while this flush was in flight.
       buffer.removeFirst(min(pending.count, buffer.count))
+      os_log(.info, log: Self.log, "flushed %d diagnostic event(s)", accepted)
     case .failure(let error):
       os_log(
         .error, log: Self.log, "flush failed, will retry on next event: %{public}@",
@@ -139,8 +144,9 @@ actor HitchScopeRuntime {
       metrics: pending
     )
     switch result {
-    case .success:
+    case .success(let accepted):
       metricBuffer.removeFirst(min(pending.count, metricBuffer.count))
+      os_log(.info, log: Self.log, "flushed %d metric aggregate(s)", accepted)
     case .failure(let error):
       os_log(
         .error, log: Self.log, "metrics flush failed, will retry on next report: %{public}@",
