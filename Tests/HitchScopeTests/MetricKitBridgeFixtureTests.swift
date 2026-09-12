@@ -10,11 +10,19 @@ import XCTest
 /// (confirmed: Apple's MetricKit types only construct via `Decodable`), so
 /// decoding a real capture is the only way to get one for a test at all.
 ///
-/// This also caught a real bug (frame-extraction only ever read the
-/// outermost frame of an arbitrary thread, not the attributed one, missing
-/// 50+ real frames per fixture) that no synthetic test data would have
-/// surfaced, since hand-written fixtures naturally only exercise the shapes
-/// the author already thought of.
+/// Coverage is currently 2 of the 6 `DiagnosticKind` cases - crash and
+/// memoryException. No real fixtures exist yet for hang, appLaunch,
+/// cpuException, or diskWriteException (the Example app has no trigger for
+/// the latter two at all yet - see the future-roadmap note on Example app
+/// trigger coverage). Don't read "all fixture tests pass" as "every
+/// diagnostic kind is validated against real data" - it isn't, yet.
+///
+/// This also caught a real bug: frame extraction only ever read the single
+/// outermost frame of `threads.first`, not the attributed thread, and never
+/// descended into `subFrames`. The 3 real memoryException fixtures make
+/// this concrete: the OS-attributed thread is index 2, 4, and 2
+/// respectively - never index 0 - so the old code would have picked the
+/// wrong thread's stack entirely, not just truncated the right one.
 final class MetricKitBridgeFixtureTests: XCTestCase {
   private func loadFixture(_ name: String) throws -> DiagnosticReport {
     let url = try XCTUnwrap(
@@ -24,53 +32,96 @@ final class MetricKitBridgeFixtureTests: XCTestCase {
     return try JSONDecoder().decode(DiagnosticReport.self, from: data)
   }
 
-  private let allFixtureNames = [
-    "diagnostic-20260912T110745.770",  // memoryException, no states
-    "diagnostic-20260912T110757.564",  // crash, no states
-    "diagnostic-20260912T131926.292",  // memoryException, no states
-    "diagnostic-20260912T172415.580",  // crash, 2 states (multi-domain)
-    "diagnostic-20260912T172435.024",  // memoryException, 3 states (incl. stableMetadata)
+  /// Every leaf value here was independently extracted from the raw fixture
+  /// JSON (walking `subFrames` in Python, picking the OS-attributed thread),
+  /// not derived from `MetricKitBridge`'s own logic - this is what makes it
+  /// an actual check of correctness rather than a change-detector that
+  /// would pass just as well if the fix were subtly wrong.
+  private struct ExpectedLeafFrame {
+    let kind: String
+    let attributedThreadIndex: Int
+    let leafBinaryUUID: String
+    let leafOffset: UInt64
+    let numStates: Int
+  }
+
+  private let expectations: [String: ExpectedLeafFrame] = [
+    "diagnostic-20260912T110745.770": ExpectedLeafFrame(
+      kind: "memoryException", attributedThreadIndex: 2,
+      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 0),
+    "diagnostic-20260912T110757.564": ExpectedLeafFrame(
+      kind: "crash", attributedThreadIndex: 0,
+      leafBinaryUUID: "D3F59B02-EE07-371B-B091-3F150A078ED8", leafOffset: 21944, numStates: 0),
+    "diagnostic-20260912T131926.292": ExpectedLeafFrame(
+      kind: "memoryException", attributedThreadIndex: 4,
+      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 0),
+    "diagnostic-20260912T172415.580": ExpectedLeafFrame(
+      kind: "crash", attributedThreadIndex: 0,
+      leafBinaryUUID: "D3F59B02-EE07-371B-B091-3F150A078ED8", leafOffset: 21944, numStates: 2),
+    "diagnostic-20260912T172435.024": ExpectedLeafFrame(
+      kind: "memoryException", attributedThreadIndex: 2,
+      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 3),
   ]
 
-  func testAllFixturesDecodeWithoutError() throws {
-    for name in allFixtureNames {
-      XCTAssertNoThrow(try loadFixture(name), "failed to decode \(name)")
+  private func topFrames(for summary: DiagnosticSummary) -> [FrameSummary]? {
+    switch summary.kind {
+    case .crash(let crash): return crash.topFrames
+    case .memoryException(let exception): return exception.topFrames
+    case .hang(let hang): return hang.topFrames
+    case .appLaunch(let launch): return launch.topFrames
+    case .cpuException(let exception): return exception.topFrames
+    case .diskWriteException(let exception): return exception.topFrames
     }
   }
 
-  func testAllFixturesSummarizeToExactlyOneSummary() throws {
-    for name in allFixtureNames {
+  private func kindName(for summary: DiagnosticSummary) -> String {
+    switch summary.kind {
+    case .crash: return "crash"
+    case .memoryException: return "memoryException"
+    case .hang: return "hang"
+    case .appLaunch: return "appLaunch"
+    case .cpuException: return "cpuException"
+    case .diskWriteException: return "diskWriteException"
+    }
+  }
+
+  func testEveryFixtureParsesIntoTheExpectedKindWithTheRealLeafFrameFirst() throws {
+    for (name, expected) in expectations {
       let report = try loadFixture(name)
       let summaries = MetricKitBridge.summarize(report)
+      XCTAssertEqual(summaries.count, 1, "\(name): expected exactly one DiagnosticSummary")
+      guard let summary = summaries.first else { continue }
+
+      XCTAssertEqual(kindName(for: summary), expected.kind, "\(name): wrong DiagnosticKind")
+      XCTAssertEqual(summary.states.count, expected.numStates, "\(name): wrong state count")
+
+      let frames = try XCTUnwrap(topFrames(for: summary), "\(name): no topFrames case matched")
+      let firstFrame = try XCTUnwrap(frames.first, "\(name): topFrames is empty")
       XCTAssertEqual(
-        summaries.count, 1, "\(name) should summarize to exactly one DiagnosticSummary")
+        firstFrame.binaryUUID, expected.leafBinaryUUID,
+        "\(name): topFrames[0] should be the real leaf frame from the attributed thread (index \(expected.attributedThreadIndex)), not the wrong thread or an outer frame"
+      )
+      XCTAssertEqual(
+        firstFrame.offset, expected.leafOffset, "\(name): topFrames[0].offset mismatch")
+      XCTAssertGreaterThan(
+        frames.count, 1,
+        "\(name): should have walked subFrames for real depth, not just the single root frame")
     }
   }
 
-  func testCrashFixtureExtractsRealSignalAndDeepFrames() throws {
-    let report = try loadFixture("diagnostic-20260912T110757.564")
-    let summary = try XCTUnwrap(MetricKitBridge.summarize(report).first)
-
-    guard case .crash(let crash) = summary.kind else {
-      return XCTFail("expected .crash")
+  func testEveryFixtureMapsToAnIngestEventWithoutCrashing() throws {
+    for name in expectations.keys {
+      let report = try loadFixture(name)
+      for summary in MetricKitBridge.summarize(report) {
+        _ = EventMapper.map(summary)
+      }
     }
-    // Real captured values - this crash is a real SIGABRT-family signal.
-    XCTAssertEqual(crash.signal, 5)
-    XCTAssertEqual(crash.threadCount, 6)
-    // The real bug: the old code took `threads.first.rootFrames.prefix(5)`
-    // with no descent into `subFrames`, so it only ever produced exactly 1
-    // frame (the single root, before any subFrame walk) regardless of how
-    // deep the real stack was. This thread's real stack is 53 frames deep.
-    XCTAssertGreaterThan(
-      crash.topFrames.count, 1,
-      "frame extraction should walk subFrames, not just read the single root frame")
   }
 
   func testMultiDomainFixtureCapturesAllStatesWithDuration() throws {
     let report = try loadFixture("diagnostic-20260912T172415.580")
     let summary = try XCTUnwrap(MetricKitBridge.summarize(report).first)
 
-    XCTAssertEqual(summary.states.count, 2)
     let domains = Set(summary.states.map(\.domain))
     XCTAssertTrue(domains.contains("com.hitchscope.example.screen"))
     XCTAssertTrue(domains.contains("com.hitchscope.example.experiment.checkout_redesign"))
@@ -100,14 +151,5 @@ final class MetricKitBridgeFixtureTests: XCTestCase {
     XCTAssertTrue(summary.isTestFlightApp)
     XCTAssertFalse(summary.lowPowerModeEnabled)
     XCTAssertEqual(summary.osBuildNumber, "24A435")
-  }
-
-  func testEveryFixtureMapsToAnIngestEventWithoutCrashing() throws {
-    for name in allFixtureNames {
-      let report = try loadFixture(name)
-      for summary in MetricKitBridge.summarize(report) {
-        _ = EventMapper.map(summary)  // exercising for crashes/traps only
-      }
-    }
   }
 }
