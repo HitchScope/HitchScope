@@ -1,65 +1,44 @@
 import Foundation
 
-/// A summarized call-stack frame. Real fixtures show a single thread's stack
-/// is often a single linear chain 50+ frames deep via `subFrames` - this is
-/// one frame from that walked path, not a raw tree node.
-struct FrameSummary: Sendable {
-  let binaryUUID: String?
-  let offset: UInt64?
-  let sampleCount: Int?
-}
-
-/// From `CrashDiagnostic.ObjectiveCExceptionReason` - only present for an
-/// uncaught NSException-style crash.
-struct ExceptionReasonSummary: Sendable {
-  let composedMessage: String
-  let formatString: String
-  let arguments: [String]
-  let exceptionType: String
-  let className: String
-  let exceptionName: String
-}
-
+/// Only the scalar fields Apple provides for free without symbolication - no
+/// call-stack extraction. A MetricKit frame is just a binary UUID + byte
+/// offset, meaningless without a matching dSYM; owning dSYM upload/storage/
+/// matching wasn't worth it when Xcode Organizer already gives fully
+/// symbolicated crash/hang logs for free on any TestFlight/App Store build.
+/// See the future-roadmap doc for the tradeoff and what it'd take to add
+/// this back.
 struct CrashSummary: Sendable {
   let terminationReason: String?
   let terminationCategory: String?
   let exceptionType: Int?
   let exceptionCode: UInt64?
   let signal: Int?
-  let virtualMemoryRegionInfo: String?
-  let exceptionReason: ExceptionReasonSummary?
   let threadCount: Int
-  let topFrames: [FrameSummary]
 }
 
 struct HangSummary: Sendable {
   let durationMs: Double
   let threadCount: Int
-  let topFrames: [FrameSummary]
 }
 
 struct AppLaunchSummary: Sendable {
   let durationMs: Double
   let threadCount: Int
-  let topFrames: [FrameSummary]
 }
 
 struct MemoryExceptionSummary: Sendable {
   let threadCount: Int
-  let topFrames: [FrameSummary]
 }
 
 struct CPUExceptionSummary: Sendable {
   let totalCPUTimeMs: Double
   let totalSampledTimeMs: Double
   let threadCount: Int
-  let topFrames: [FrameSummary]
 }
 
 struct DiskWriteExceptionSummary: Sendable {
   let totalBytesWritten: Double
   let threadCount: Int
-  let topFrames: [FrameSummary]
 }
 
 enum DiagnosticKind: Sendable {

@@ -19,10 +19,7 @@ final class EventMapperTests: XCTestCase {
           exceptionType: 1,
           exceptionCode: 2,
           signal: 11,
-          virtualMemoryRegionInfo: nil,
-          exceptionReason: nil,
-          threadCount: 4,
-          topFrames: [FrameSummary(binaryUUID: "ABC-123", offset: 0x100, sampleCount: 3)]
+          threadCount: 4
         ))
     )
 
@@ -42,51 +39,6 @@ final class EventMapperTests: XCTestCase {
     guard case .int(4) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount")
     }
-    guard case .array(let frames) = event.payload["topFrames"], frames.count == 1 else {
-      return XCTFail("expected one topFrame")
-    }
-  }
-
-  func testCrashMapsVirtualMemoryRegionInfoAndExceptionReason() {
-    let summary = DiagnosticSummary(
-      states: [],
-      occurredAt: fixedDate,
-      kind: .crash(
-        CrashSummary(
-          terminationReason: nil,
-          terminationCategory: nil,
-          exceptionType: nil,
-          exceptionCode: nil,
-          signal: nil,
-          virtualMemoryRegionInfo: "0x0 is null pointer dereference",
-          exceptionReason: ExceptionReasonSummary(
-            composedMessage: "*** -[__NSArray0 objectAtIndex:]: index 0 beyond bounds",
-            formatString: "*** -[%@ %@]: index %lu beyond bounds",
-            arguments: ["__NSArray0", "objectAtIndex:", "0"],
-            exceptionType: "NSException",
-            className: "__NSArray0",
-            exceptionName: "NSRangeException"
-          ),
-          threadCount: 1,
-          topFrames: []
-        ))
-    )
-
-    let event = EventMapper.map(summary)
-
-    guard case .string("0x0 is null pointer dereference") = event.payload["virtualMemoryRegionInfo"]
-    else {
-      return XCTFail("expected virtualMemoryRegionInfo")
-    }
-    guard case .object(let reason) = event.payload["exceptionReason"] else {
-      return XCTFail("expected exceptionReason object")
-    }
-    guard case .string("NSRangeException") = reason["exceptionName"] else {
-      return XCTFail("expected exceptionName")
-    }
-    guard case .array(let arguments) = reason["arguments"], arguments.count == 3 else {
-      return XCTFail("expected 3 arguments")
-    }
   }
 
   func testCrashOmitsNilOptionalFields() {
@@ -100,31 +52,22 @@ final class EventMapperTests: XCTestCase {
           exceptionType: nil,
           exceptionCode: nil,
           signal: nil,
-          virtualMemoryRegionInfo: nil,
-          exceptionReason: nil,
-          threadCount: 1,
-          topFrames: []
+          threadCount: 1
         ))
     )
 
     let event = EventMapper.map(summary)
 
     XCTAssertNil(event.payload["terminationReason"])
-    XCTAssertNil(event.payload["topFrames"])
-    XCTAssertNil(event.payload["virtualMemoryRegionInfo"])
-    XCTAssertNil(event.payload["exceptionReason"])
     guard case .int(1) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount even with no other fields")
     }
   }
 
-  func testHangMapsDurationThreadCountAndFrames() {
+  func testHangMapsDurationAndThreadCount() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
-      kind: .hang(
-        HangSummary(
-          durationMs: 1500.5, threadCount: 6,
-          topFrames: [FrameSummary(binaryUUID: "ABC-123", offset: 0x10, sampleCount: 1)])))
+      kind: .hang(HangSummary(durationMs: 1500.5, threadCount: 6)))
     let event = EventMapper.map(summary)
 
     XCTAssertEqual(event.type, .hang)
@@ -134,32 +77,25 @@ final class EventMapperTests: XCTestCase {
     guard case .int(6) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount")
     }
-    guard case .array(let frames) = event.payload["topFrames"], frames.count == 1 else {
-      return XCTFail("expected one topFrame")
-    }
   }
 
-  func testAppLaunchMapsDurationThreadCountAndFrames() {
+  func testAppLaunchMapsDurationAndThreadCount() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
-      kind: .appLaunch(AppLaunchSummary(durationMs: 900, threadCount: 3, topFrames: [])))
+      kind: .appLaunch(AppLaunchSummary(durationMs: 900, threadCount: 3)))
     let event = EventMapper.map(summary)
 
     XCTAssertEqual(event.type, .launch)
     guard case .double(900) = event.payload["launchDurationMs"] else {
       return XCTFail("expected launchDurationMs")
     }
-    XCTAssertNil(event.payload["topFrames"])
   }
 
-  func testCPUExceptionMapsTimesFramesAndThreadCount() {
+  func testCPUExceptionMapsTimesAndThreadCount() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
       kind: .cpuException(
-        CPUExceptionSummary(
-          totalCPUTimeMs: 5000, totalSampledTimeMs: 6000, threadCount: 8,
-          topFrames: [FrameSummary(binaryUUID: "ABC-123", offset: 0x200, sampleCount: 2)]
-        )))
+        CPUExceptionSummary(totalCPUTimeMs: 5000, totalSampledTimeMs: 6000, threadCount: 8)))
     let event = EventMapper.map(summary)
 
     XCTAssertEqual(event.type, .cpuException)
@@ -172,16 +108,13 @@ final class EventMapperTests: XCTestCase {
     guard case .int(8) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount")
     }
-    guard case .array(let frames) = event.payload["topFrames"], frames.count == 1 else {
-      return XCTFail("expected one topFrame")
-    }
   }
 
   func testDiskWriteExceptionMapsBytesWrittenAndThreadCount() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
       kind: .diskWriteException(
-        DiskWriteExceptionSummary(totalBytesWritten: 123_456, threadCount: 4, topFrames: [])))
+        DiskWriteExceptionSummary(totalBytesWritten: 123_456, threadCount: 4)))
     let event = EventMapper.map(summary)
 
     XCTAssertEqual(event.type, .diskWriteException)
@@ -191,13 +124,12 @@ final class EventMapperTests: XCTestCase {
     guard case .int(4) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount")
     }
-    XCTAssertNil(event.payload["topFrames"])
   }
 
   func testReportContextKeysReflectSummaryFlags() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
-      kind: .memoryException(MemoryExceptionSummary(threadCount: 1, topFrames: [])),
+      kind: .memoryException(MemoryExceptionSummary(threadCount: 1)),
       lowPowerModeEnabled: true, isTestFlightApp: true, osBuildNumber: "24A435")
     let event = EventMapper.map(summary)
 
@@ -215,7 +147,7 @@ final class EventMapperTests: XCTestCase {
   func testMemoryExceptionOnlyHasThreadCount() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
-      kind: .memoryException(MemoryExceptionSummary(threadCount: 5, topFrames: [])))
+      kind: .memoryException(MemoryExceptionSummary(threadCount: 5)))
     let event = EventMapper.map(summary)
 
     XCTAssertEqual(event.type, .memory)
@@ -234,24 +166,10 @@ final class EventMapperTests: XCTestCase {
     }
   }
 
-  func testMemoryExceptionMapsFrames() {
-    let summary = DiagnosticSummary(
-      states: [], occurredAt: fixedDate,
-      kind: .memoryException(
-        MemoryExceptionSummary(
-          threadCount: 5,
-          topFrames: [FrameSummary(binaryUUID: "ABC-123", offset: 0x10, sampleCount: 1)])))
-    let event = EventMapper.map(summary)
-
-    guard case .array(let frames) = event.payload["topFrames"], frames.count == 1 else {
-      return XCTFail("expected one topFrame")
-    }
-  }
-
   func testNoStatesProducesEmptyStatesArray() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate,
-      kind: .memoryException(MemoryExceptionSummary(threadCount: 1, topFrames: [])))
+      kind: .memoryException(MemoryExceptionSummary(threadCount: 1)))
     let event = EventMapper.map(summary)
 
     XCTAssertTrue(event.states.isEmpty)
