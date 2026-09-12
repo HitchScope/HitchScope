@@ -19,10 +19,11 @@ import XCTest
 ///
 /// This also caught a real bug: frame extraction only ever read the single
 /// outermost frame of `threads.first`, not the attributed thread, and never
-/// descended into `subFrames`. The 3 real memoryException fixtures make
-/// this concrete: the OS-attributed thread is index 2, 4, and 2
+/// descended into `subFrames`. The 4 real memoryException fixtures make
+/// this concrete: the OS-attributed thread is index 2, 4, 2, and 1
 /// respectively - never index 0 - so the old code would have picked the
-/// wrong thread's stack entirely, not just truncated the right one.
+/// wrong thread's stack entirely, not just truncated the right one. Index 1
+/// in particular is the boundary case an off-by-one fix could still miss.
 final class MetricKitBridgeFixtureTests: XCTestCase {
   private func loadFixture(_ name: String) throws -> DiagnosticReport {
     let url = try XCTUnwrap(
@@ -61,6 +62,9 @@ final class MetricKitBridgeFixtureTests: XCTestCase {
     "diagnostic-20260912T172435.024": ExpectedLeafFrame(
       kind: "memoryException", attributedThreadIndex: 2,
       leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 3),
+    "diagnostic-20260912T181913.431": ExpectedLeafFrame(
+      kind: "memoryException", attributedThreadIndex: 1,
+      leafBinaryUUID: "694C772A-A9F8-3AC0-9417-7C304043A771", leafOffset: 2320, numStates: 4),
   ]
 
   private func topFrames(for summary: DiagnosticSummary) -> [FrameSummary]? {
