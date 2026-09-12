@@ -56,7 +56,7 @@ struct ContentView: View {
         VStack(spacing: 16) {
             Text("HitchScope Example")
                 .font(.headline)
-            Text("Used for exercising SDK changes against the real MetricKit/StateReporting pipeline on a device. Diagnostics (crash/hang/launch/memory) deliver immediately after an incident; metric aggregates (hitch ratio, etc.) deliver in a daily report.")
+            Text("Used for exercising SDK changes against the real MetricKit/StateReporting pipeline on a device. In testing, crash/memory diagnostics have shown up within under a minute of relaunching; hang diagnostic delivery has been unpredictable - hours to days, sometimes not at all in a session. Metric aggregates (hitch ratio, etc.) deliver in a daily report.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -99,7 +99,8 @@ struct ContentView: View {
                     // how you produce a genuine MXHangDiagnostic on device;
                     // there's no way to fake one via the SDK's own API.
                     Thread.sleep(forTimeInterval: 2)
-                    lastAction = "Hang triggered. Diagnostic report delivery is async and may take a moment."
+                    lastAction =
+                        "Hang triggered. Unlike crash/memory (which showed up within a minute in testing), hang diagnostic delivery has been unpredictable - could be hours, days, or not at all this session. Don't wait around for it."
                 }
             }
             .buttonStyle(.borderedProminent)
