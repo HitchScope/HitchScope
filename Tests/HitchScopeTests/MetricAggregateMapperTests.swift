@@ -33,6 +33,93 @@ final class MetricAggregateMapperTests: XCTestCase {
     XCTAssertEqual(event.peakMemoryMB, 312.5)
   }
 
+  func testCPUTimeMapsToRaw() {
+    let event = MetricAggregateMapper.map(summary(.cpuTime(ms: 4200)))
+
+    XCTAssertEqual(event.kind, "cpuTime")
+    guard case .double(4200) = event.raw["valueMs"] else {
+      return XCTFail("expected valueMs")
+    }
+  }
+
+  func testCPUInstructionsCountMapsToRaw() {
+    let event = MetricAggregateMapper.map(summary(.cpuInstructionsCount(count: 9_000_000)))
+
+    XCTAssertEqual(event.kind, "cpuInstructionsCount")
+    guard case .int(9_000_000) = event.raw["value"] else {
+      return XCTFail("expected value")
+    }
+  }
+
+  func testGPUTimeMapsToRaw() {
+    let event = MetricAggregateMapper.map(summary(.gpuTime(ms: 800)))
+
+    XCTAssertEqual(event.kind, "gpuTime")
+    guard case .double(800) = event.raw["valueMs"] else {
+      return XCTFail("expected valueMs")
+    }
+  }
+
+  func testNetworkMetricsMapToRawBytes() {
+    let wifiUp = MetricAggregateMapper.map(summary(.totalWiFiUpload(bytes: 1024)))
+    XCTAssertEqual(wifiUp.kind, "totalWiFiUpload")
+    guard case .double(1024) = wifiUp.raw["valueBytes"] else {
+      return XCTFail("expected valueBytes")
+    }
+
+    let cellularDown = MetricAggregateMapper.map(summary(.totalCellularDownload(bytes: 2048)))
+    XCTAssertEqual(cellularDown.kind, "totalCellularDownload")
+    guard case .double(2048) = cellularDown.raw["valueBytes"] else {
+      return XCTFail("expected valueBytes")
+    }
+  }
+
+  func testForegroundTerminationOmitsBackgroundOnlyFields() {
+    let event = MetricAggregateMapper.map(
+      summary(
+        .foregroundTermination(
+          TerminationSummary(
+            normalCount: 10, memoryLimitCount: 2, badAccessCount: 1, abnormalCount: 0,
+            illegalInstructionCount: 0, watchdogCount: 3,
+            highCPUCount: nil, systemPressureCount: nil, fileLockCount: nil, taskTimeoutCount: nil
+          ))))
+
+    XCTAssertEqual(event.kind, "foregroundTermination")
+    guard case .int(2) = event.raw["memoryLimitCount"] else {
+      return XCTFail("expected memoryLimitCount")
+    }
+    guard case .int(3) = event.raw["watchdogCount"] else {
+      return XCTFail("expected watchdogCount")
+    }
+    XCTAssertNil(event.raw["highCPUCount"])
+    XCTAssertNil(event.raw["fileLockCount"])
+  }
+
+  func testBackgroundTerminationIncludesAllFields() {
+    let event = MetricAggregateMapper.map(
+      summary(
+        .backgroundTermination(
+          TerminationSummary(
+            normalCount: 5, memoryLimitCount: 1, badAccessCount: 0, abnormalCount: 0,
+            illegalInstructionCount: 0, watchdogCount: 2,
+            highCPUCount: 4, systemPressureCount: 1, fileLockCount: 0, taskTimeoutCount: 1
+          ))))
+
+    XCTAssertEqual(event.kind, "backgroundTermination")
+    guard case .int(4) = event.raw["highCPUCount"] else {
+      return XCTFail("expected highCPUCount")
+    }
+    guard case .int(1) = event.raw["systemPressureCount"] else {
+      return XCTFail("expected systemPressureCount")
+    }
+    guard case .int(0) = event.raw["fileLockCount"] else {
+      return XCTFail("expected fileLockCount")
+    }
+    guard case .int(1) = event.raw["taskTimeoutCount"] else {
+      return XCTFail("expected taskTimeoutCount")
+    }
+  }
+
   func testGenericKindDecodesRawFromEncodedValue() throws {
     let encoded = try JSONEncoder().encode(["valueMs": 4200])
     let event = MetricAggregateMapper.map(
@@ -54,7 +141,12 @@ final class MetricAggregateMapperTests: XCTestCase {
       summary(.generic(kindName: "weird", encodedValue: encoded)))
 
     XCTAssertEqual(event.kind, "weird")
-    XCTAssertTrue(event.raw.isEmpty)
+    // The generic decode contributes nothing beyond the three report-context
+    // keys every event carries, regardless of kind.
+    XCTAssertEqual(event.raw.count, 3)
+    guard case .bool(false) = event.raw["lowPowerModeEnabled"] else {
+      return XCTFail("expected lowPowerModeEnabled context key even when generic decode fails")
+    }
   }
 
   // MARK: - Histogram percentile stats

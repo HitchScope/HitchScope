@@ -46,12 +46,40 @@ final class IngestModelsTests: XCTestCase {
     XCTAssertEqual(EventKind.hang.rawValue, "HANG")
     XCTAssertEqual(EventKind.launch.rawValue, "LAUNCH")
     XCTAssertEqual(EventKind.memory.rawValue, "MEMORY")
+    XCTAssertEqual(EventKind.cpuException.rawValue, "CPU_EXCEPTION")
+    XCTAssertEqual(EventKind.diskWriteException.rawValue, "DISK_WRITE_EXCEPTION")
   }
 
   func testResponseDecodesAcceptedCount() throws {
     let json = #"{"accepted": 12}"#.data(using: .utf8)!
     let response = try JSONDecoder().decode(IngestResponse.self, from: json)
     XCTAssertEqual(response.accepted, 12)
+  }
+
+  func testStateEntryOmitsMetadataKeyWhenNil() throws {
+    let state = StateEntry(domain: "com.app.screen", label: "Checkout")
+    let data = try JSONEncoder().encode(state)
+    let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+    XCTAssertNil(json["metadata"])
+  }
+
+  func testStateEntryMetadataRoundTrips() throws {
+    let state = StateEntry(
+      domain: "com.app.experiment.checkout_redesign", label: "variant_b",
+      metadata: ["userTier": .string("premium"), "cartTotal": .double(49.99)]
+    )
+    let data = try JSONEncoder().encode(state)
+    let decoded = try JSONDecoder().decode(StateEntry.self, from: data)
+
+    XCTAssertEqual(decoded.domain, state.domain)
+    XCTAssertEqual(decoded.label, state.label)
+    guard case .string("premium") = decoded.metadata?["userTier"] else {
+      return XCTFail("expected userTier metadata")
+    }
+    guard case .double(49.99) = decoded.metadata?["cartTotal"] else {
+      return XCTFail("expected cartTotal metadata")
+    }
   }
 
   func testJSONValueRoundTripsHeterogeneousTypes() throws {

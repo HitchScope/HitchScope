@@ -42,10 +42,59 @@ enum MetricAggregateMapper {
         raw: ["valueMB": .double(megabytes)]
       )
 
+    case .cpuTime(let ms):
+      return event(summary, kind: "cpuTime", raw: ["valueMs": .double(ms)])
+
+    case .cpuInstructionsCount(let count):
+      return event(summary, kind: "cpuInstructionsCount", raw: ["value": .int(count)])
+
+    case .gpuTime(let ms):
+      return event(summary, kind: "gpuTime", raw: ["valueMs": .double(ms)])
+
+    case .totalWiFiUpload(let bytes):
+      return event(summary, kind: "totalWiFiUpload", raw: ["valueBytes": .double(bytes)])
+
+    case .totalWiFiDownload(let bytes):
+      return event(summary, kind: "totalWiFiDownload", raw: ["valueBytes": .double(bytes)])
+
+    case .totalCellularUpload(let bytes):
+      return event(summary, kind: "totalCellularUpload", raw: ["valueBytes": .double(bytes)])
+
+    case .totalCellularDownload(let bytes):
+      return event(summary, kind: "totalCellularDownload", raw: ["valueBytes": .double(bytes)])
+
+    case .foregroundTermination(let termination):
+      return event(
+        summary, kind: "foregroundTermination", raw: terminationRaw(termination))
+
+    case .backgroundTermination(let termination):
+      return event(
+        summary, kind: "backgroundTermination", raw: terminationRaw(termination))
+
     case .generic(let kindName, let encodedValue):
       let raw = (try? JSONDecoder().decode([String: JSONValue].self, from: encodedValue)) ?? [:]
       return event(summary, kind: kindName, raw: raw)
     }
+  }
+
+  private static func terminationRaw(_ termination: TerminationSummary) -> [String: JSONValue] {
+    var raw: [String: JSONValue] = [
+      "normalCount": .int(termination.normalCount),
+      "memoryLimitCount": .int(termination.memoryLimitCount),
+      "badAccessCount": .int(termination.badAccessCount),
+      "abnormalCount": .int(termination.abnormalCount),
+      "illegalInstructionCount": .int(termination.illegalInstructionCount),
+      "watchdogCount": .int(termination.watchdogCount),
+    ]
+    if let highCPUCount = termination.highCPUCount { raw["highCPUCount"] = .int(highCPUCount) }
+    if let systemPressureCount = termination.systemPressureCount {
+      raw["systemPressureCount"] = .int(systemPressureCount)
+    }
+    if let fileLockCount = termination.fileLockCount { raw["fileLockCount"] = .int(fileLockCount) }
+    if let taskTimeoutCount = termination.taskTimeoutCount {
+      raw["taskTimeoutCount"] = .int(taskTimeoutCount)
+    }
+    return raw
   }
 
   // MARK: - Histogram -> percentile stats
@@ -120,7 +169,14 @@ enum MetricAggregateMapper {
     peakMemoryMB: Double? = nil,
     raw: [String: JSONValue]
   ) -> MetricAggregateIngestEvent {
-    MetricAggregateIngestEvent(
+    // Report-level context, not specific to any one metric kind - same
+    // three keys on every event, regardless of kind.
+    var raw = raw
+    raw["lowPowerModeEnabled"] = .bool(summary.lowPowerModeEnabled)
+    raw["isTestFlightApp"] = .bool(summary.isTestFlightApp)
+    raw["hasExceededStateLimit"] = .bool(summary.hasExceededStateLimit)
+
+    return MetricAggregateIngestEvent(
       kind: kind,
       states: summary.states,
       windowStart: summary.windowStart,

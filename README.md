@@ -44,13 +44,24 @@ Other domains worth considering, not built in, just report them: funnel/flow sta
 
 ## Metadata
 
-`reportState` also takes stable and volatile metadata (dates, strings, integers, floats) if a fixed label isn't enough context on its own:
+`reportState` takes stable and volatile metadata (dates, strings, integers, floats) if a fixed label isn't enough context on its own. **A state's identity is its label *and* stable metadata together** — a transition happens when either one changes, not just the label:
+
+```swift
+HitchScope.reportState(
+    "com.myapp.checkout", label: "paymentSheet",
+    stableMetadata: ["userTier": .init("premium")]
+)
+```
+
+For a value that changes *within* the same state — a running count, a progress percentage — use `updateVolatileMetadata` instead of calling `reportState` again:
 
 ```swift
 HitchScope.updateVolatileMetadata("com.myapp.subsystem", ["frameRate": .init(currentFPS)])
 ```
 
-Put continuously-changing values here, not in the label — Apple's own guidance is that a label like `"Score-\(score)"` fragments your data into buckets too small to be meaningful; a small, fixed set of labels (`"Low"`, `"Medium"`, `"High"`) is what state-reporting domains are for.
+This isn't just style: `reportState` is a no-op whenever the label and stable metadata both match the current state, so calling it again with only a new volatile value attached gets silently dropped — the label/stableMetadata matched, so nothing changed as far as StateReporting is concerned, and the volatile value you passed never lands. `updateVolatileMetadata` is the only way to update volatile-only data without starting a new transition.
+
+Put continuously-changing values in volatile metadata, not in the label — Apple's own guidance is that a label like `"Score-\(score)"` fragments your data into buckets too small to be meaningful; a small, fixed set of labels (`"Low"`, `"Medium"`, `"High"`) is what state-reporting domains are for.
 
 ## Constraints worth knowing
 

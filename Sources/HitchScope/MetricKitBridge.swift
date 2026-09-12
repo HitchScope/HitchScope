@@ -113,10 +113,22 @@ actor MetricKitBridge {
   // MARK: - DiagnosticReport -> plain DiagnosticSummary
 
   private static func summarize(_ report: DiagnosticReport) -> [DiagnosticSummary] {
-    let states = report.environment.states.map { StateEntry(domain: $0.domain, label: $0.label) }
+    let states = report.environment.states.map {
+      StateEntry(domain: $0.domain, label: $0.label, metadata: metadataJSON($0.stableMetadata))
+    }
     // `.start` of the report's time window — the closest available
     // approximation of when the underlying incident actually happened.
     let occurredAt = report.timeRange.start
+    let lowPowerModeEnabled = report.environment.lowPowerModeEnabled
+    let isTestFlightApp = report.environment.isTestFlightApp
+
+    func summary(_ kind: DiagnosticKind) -> [DiagnosticSummary] {
+      [
+        DiagnosticSummary(
+          states: states, occurredAt: occurredAt, kind: kind,
+          lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp)
+      ]
+    }
 
     switch report.result {
     case .crash(let diagnostic):
@@ -137,36 +149,54 @@ actor MetricKitBridge {
         threadCount: threads.count,
         topFrames: Array(topFrames)
       )
-      return [DiagnosticSummary(states: states, occurredAt: occurredAt, kind: .crash(crash))]
+      return summary(.crash(crash))
 
     case .hang(let diagnostic):
       let threadCount = diagnostic.callStackTree.callStackThreads.count
       let durationMs = diagnostic.hangDuration.converted(to: .milliseconds).value
-      return [
-        DiagnosticSummary(
-          states: states, occurredAt: occurredAt,
-          kind: .hang(durationMs: durationMs, threadCount: threadCount))
-      ]
+      return summary(.hang(durationMs: durationMs, threadCount: threadCount))
 
     case .appLaunch(let diagnostic):
       let threadCount = diagnostic.callStackTree.callStackThreads.count
       let durationMs = diagnostic.launchDuration.converted(to: .milliseconds).value
-      return [
-        DiagnosticSummary(
-          states: states, occurredAt: occurredAt,
-          kind: .appLaunch(durationMs: durationMs, threadCount: threadCount))
-      ]
+      return summary(.appLaunch(durationMs: durationMs, threadCount: threadCount))
 
     case .memoryException(let diagnostic):
       let threadCount = diagnostic.callStackTree.callStackThreads.count
-      return [
-        DiagnosticSummary(
-          states: states, occurredAt: occurredAt, kind: .memoryException(threadCount: threadCount))
-      ]
+      return summary(.memoryException(threadCount: threadCount))
 
-    case .cpuException, .diskWriteException:
-      // No slot in the backend's 4-type contract — dropped, not mis-mapped.
-      return []
+    case .cpuException(let diagnostic):
+      let threads = diagnostic.callStackTree.callStackThreads
+      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
+        FrameSummary(
+          binaryUUID: frame.binaryUUID?.uuidString,
+          offset: frame.offsetIntoBinaryTextSegment,
+          sampleCount: frame.sampleCount
+        )
+      }
+      let exception = CPUExceptionSummary(
+        totalCPUTimeMs: diagnostic.totalCPUTime.converted(to: .milliseconds).value,
+        totalSampledTimeMs: diagnostic.totalSampledTime.converted(to: .milliseconds).value,
+        threadCount: threads.count,
+        topFrames: Array(topFrames)
+      )
+      return summary(.cpuException(exception))
+
+    case .diskWriteException(let diagnostic):
+      let threads = diagnostic.callStackTree.callStackThreads
+      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
+        FrameSummary(
+          binaryUUID: frame.binaryUUID?.uuidString,
+          offset: frame.offsetIntoBinaryTextSegment,
+          sampleCount: frame.sampleCount
+        )
+      }
+      let exception = DiskWriteExceptionSummary(
+        totalBytesWritten: diagnostic.totalBytesWritten.converted(to: .bytes).value,
+        threadCount: threads.count,
+        topFrames: Array(topFrames)
+      )
+      return summary(.diskWriteException(exception))
 
     @unknown default:
       return []
@@ -184,15 +214,27 @@ actor MetricKitBridge {
   private static func summarizeMetrics(_ report: MetricReport) -> [MetricAggregateSummary] {
     let windowStart = report.timeRange.start
     let windowEnd = report.timeRange.end
+    // `environment` is optional on MetricReport (unlike DiagnosticReport,
+    // where it's always present) - absent, not defaulted, when genuinely
+    // unknown rather than guessed as false.
+    let lowPowerModeEnabled = report.environment?.lowPowerModeEnabled ?? false
+    let isTestFlightApp = report.environment?.isTestFlightApp ?? false
+    let hasExceededStateLimit = report.environment?.hasExceededStateLimit ?? false
 
     var summaries: [MetricAggregateSummary] = []
     for stateEntry in report.stateEntries {
-      let states = [StateEntry(domain: stateEntry.state.domain, label: stateEntry.state.label)]
+      let states = [
+        StateEntry(
+          domain: stateEntry.state.domain, label: stateEntry.state.label,
+          metadata: metadataJSON(stateEntry.state.stableMetadata))
+      ]
       for value in stateEntry.values {
         guard let kind = metricAggregateKind(for: value) else { continue }
         summaries.append(
           MetricAggregateSummary(
-            states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind))
+            states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind,
+            lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp,
+            hasExceededStateLimit: hasExceededStateLimit))
       }
     }
     return summaries
@@ -217,6 +259,45 @@ actor MetricKitBridge {
       return .extendedLaunch(buckets: bucketSummaries(metric.histogram))
     case .peakMemory(let metric):
       return .peakMemory(megabytes: metric.value.converted(to: .megabytes).value)
+    case .cpuTime(let metric):
+      return .cpuTime(ms: metric.value.converted(to: .milliseconds).value)
+    case .cpuInstructionsCount(let metric):
+      return .cpuInstructionsCount(count: metric.value)
+    case .gpuTime(let metric):
+      return .gpuTime(ms: metric.value.converted(to: .milliseconds).value)
+    case .totalWiFiUpload(let metric):
+      return .totalWiFiUpload(bytes: metric.value.converted(to: .bytes).value)
+    case .totalWiFiDownload(let metric):
+      return .totalWiFiDownload(bytes: metric.value.converted(to: .bytes).value)
+    case .totalCellularUpload(let metric):
+      return .totalCellularUpload(bytes: metric.value.converted(to: .bytes).value)
+    case .totalCellularDownload(let metric):
+      return .totalCellularDownload(bytes: metric.value.converted(to: .bytes).value)
+    case .foregroundTermination(let metric):
+      return .foregroundTermination(
+        TerminationSummary(
+          normalCount: metric.normalTerminationCount,
+          memoryLimitCount: metric.memoryLimitTerminationCount,
+          badAccessCount: metric.badAccessTerminationCount,
+          abnormalCount: metric.abnormalTerminationCount,
+          illegalInstructionCount: metric.illegalInstructionTerminationCount,
+          watchdogCount: metric.watchdogTerminationCount,
+          highCPUCount: nil, systemPressureCount: nil, fileLockCount: nil, taskTimeoutCount: nil
+        ))
+    case .backgroundTermination(let metric):
+      return .backgroundTermination(
+        TerminationSummary(
+          normalCount: metric.normalTerminationCount,
+          memoryLimitCount: metric.memoryLimitTerminationCount,
+          badAccessCount: metric.badAccessTerminationCount,
+          abnormalCount: metric.abnormalTerminationCount,
+          illegalInstructionCount: metric.illegalInstructionTerminationCount,
+          watchdogCount: metric.watchdogTerminationCount,
+          highCPUCount: metric.highCPUTerminationCount,
+          systemPressureCount: metric.systemPressureTerminationCount,
+          fileLockCount: metric.fileLockTerminationCount,
+          taskTimeoutCount: metric.taskTimeoutTerminationCount
+        ))
     default:
       // Case name via reflection (not a hand-maintained switch) so this
       // stays correct as Apple adds new MetricResult cases over time.
@@ -233,6 +314,35 @@ actor MetricKitBridge {
         upperBoundMs: $0.upperBound.converted(to: .milliseconds).value,
         count: $0.count
       )
+    }
+  }
+
+  // MARK: - ReportedState.stableMetadata -> plain JSONValue
+
+  /// `nil` when empty rather than `[:]` - keeps the wire payload the same
+  /// shape as before for the overwhelmingly common case of no metadata,
+  /// rather than adding an always-present empty object to every state.
+  private static func metadataJSON(
+    _ metadata: [String: ReportableMetadataValue]
+  ) -> [String: JSONValue]? {
+    guard !metadata.isEmpty else { return nil }
+    return metadata.mapValues(jsonValue)
+  }
+
+  private static func jsonValue(_ value: ReportableMetadataValue) -> JSONValue {
+    switch value {
+    case .string(let value):
+      return .string(value)
+    case .date(let value):
+      return .string(ISO8601DateFormatter().string(from: value))
+    case .floatingPoint(let value):
+      return .double(value)
+    case .integer(let value):
+      // Outside Int's range (Int128 can exceed it) - preserve the exact
+      // value as text rather than silently truncating.
+      return Int(exactly: value).map(JSONValue.int) ?? .string(String(value))
+    @unknown default:
+      return .null
     }
   }
 }
