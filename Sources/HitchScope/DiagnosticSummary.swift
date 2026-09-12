@@ -1,11 +1,23 @@
 import Foundation
 
-/// A summarized root call-stack frame — never the full tree, which could be
-/// arbitrarily large (many threads x deep subframe trees).
+/// A summarized call-stack frame. Real fixtures show a single thread's stack
+/// is often a single linear chain 50+ frames deep via `subFrames` - this is
+/// one frame from that walked path, not a raw tree node.
 struct FrameSummary: Sendable {
   let binaryUUID: String?
   let offset: UInt64?
   let sampleCount: Int?
+}
+
+/// From `CrashDiagnostic.ObjectiveCExceptionReason` - only present for an
+/// uncaught NSException-style crash.
+struct ExceptionReasonSummary: Sendable {
+  let composedMessage: String
+  let formatString: String
+  let arguments: [String]
+  let exceptionType: String
+  let className: String
+  let exceptionName: String
 }
 
 struct CrashSummary: Sendable {
@@ -14,6 +26,25 @@ struct CrashSummary: Sendable {
   let exceptionType: Int?
   let exceptionCode: UInt64?
   let signal: Int?
+  let virtualMemoryRegionInfo: String?
+  let exceptionReason: ExceptionReasonSummary?
+  let threadCount: Int
+  let topFrames: [FrameSummary]
+}
+
+struct HangSummary: Sendable {
+  let durationMs: Double
+  let threadCount: Int
+  let topFrames: [FrameSummary]
+}
+
+struct AppLaunchSummary: Sendable {
+  let durationMs: Double
+  let threadCount: Int
+  let topFrames: [FrameSummary]
+}
+
+struct MemoryExceptionSummary: Sendable {
   let threadCount: Int
   let topFrames: [FrameSummary]
 }
@@ -33,9 +64,9 @@ struct DiskWriteExceptionSummary: Sendable {
 
 enum DiagnosticKind: Sendable {
   case crash(CrashSummary)
-  case hang(durationMs: Double, threadCount: Int)
-  case appLaunch(durationMs: Double, threadCount: Int)
-  case memoryException(threadCount: Int)
+  case hang(HangSummary)
+  case appLaunch(AppLaunchSummary)
+  case memoryException(MemoryExceptionSummary)
   case cpuException(CPUExceptionSummary)
   case diskWriteException(DiskWriteExceptionSummary)
 }
@@ -56,15 +87,21 @@ struct DiagnosticSummary: Sendable {
   /// about this context don't all need updating.
   let lowPowerModeEnabled: Bool
   let isTestFlightApp: Bool
+  /// From `environment.osVersion.buildNumber` (e.g. "24A435") - the exact
+  /// build, not just the marketing OS version already sent at the top level
+  /// of every ingest request via `DeviceMetadata`.
+  let osBuildNumber: String?
 
   init(
     states: [StateEntry], occurredAt: Date, kind: DiagnosticKind,
-    lowPowerModeEnabled: Bool = false, isTestFlightApp: Bool = false
+    lowPowerModeEnabled: Bool = false, isTestFlightApp: Bool = false,
+    osBuildNumber: String? = nil
   ) {
     self.states = states
     self.occurredAt = occurredAt
     self.kind = kind
     self.lowPowerModeEnabled = lowPowerModeEnabled
     self.isTestFlightApp = isTestFlightApp
+    self.osBuildNumber = osBuildNumber
   }
 }

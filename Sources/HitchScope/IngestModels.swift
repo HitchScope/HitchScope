@@ -20,11 +20,20 @@ struct StateEntry: Codable, Sendable, Equatable {
   /// which carry no metadata concept, and for diagnostics where the app
   /// never attached any via `reportState(..., stableMetadata:)`.
   let metadata: [String: JSONValue]?
+  /// From `ReportedState.duration` - how long this state had been active
+  /// when the report was generated. Confirmed via real captured device
+  /// fixtures to carry real, meaningful values (e.g. 19.26s) that were
+  /// previously dropped entirely.
+  let durationMs: Double?
 
-  init(domain: String, label: String, metadata: [String: JSONValue]? = nil) {
+  init(
+    domain: String, label: String, metadata: [String: JSONValue]? = nil,
+    durationMs: Double? = nil
+  ) {
     self.domain = domain
     self.label = label
     self.metadata = metadata
+    self.durationMs = durationMs
   }
 }
 

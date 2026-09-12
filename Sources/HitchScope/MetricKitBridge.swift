@@ -112,94 +112,137 @@ actor MetricKitBridge {
 
   // MARK: - DiagnosticReport -> plain DiagnosticSummary
 
-  private static func summarize(_ report: DiagnosticReport) -> [DiagnosticSummary] {
+  static func summarize(_ report: DiagnosticReport) -> [DiagnosticSummary] {
     let states = report.environment.states.map {
-      StateEntry(domain: $0.domain, label: $0.label, metadata: metadataJSON($0.stableMetadata))
+      StateEntry(
+        domain: $0.domain, label: $0.label, metadata: metadataJSON($0.stableMetadata),
+        durationMs: $0.duration.converted(to: .milliseconds).value)
     }
     // `.start` of the report's time window — the closest available
     // approximation of when the underlying incident actually happened.
     let occurredAt = report.timeRange.start
     let lowPowerModeEnabled = report.environment.lowPowerModeEnabled
     let isTestFlightApp = report.environment.isTestFlightApp
+    let osBuildNumber = report.environment.osVersion.buildNumber
 
     func summary(_ kind: DiagnosticKind) -> [DiagnosticSummary] {
       [
         DiagnosticSummary(
           states: states, occurredAt: occurredAt, kind: kind,
-          lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp)
+          lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp,
+          osBuildNumber: osBuildNumber)
       ]
     }
 
     switch report.result {
     case .crash(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
-      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
-        FrameSummary(
-          binaryUUID: frame.binaryUUID?.uuidString,
-          offset: frame.offsetIntoBinaryTextSegment,
-          sampleCount: frame.sampleCount
-        )
-      }
       let crash = CrashSummary(
         terminationReason: diagnostic.terminationReason?.rawValue,
         terminationCategory: diagnostic.terminationCategory?.rawValue,
         exceptionType: diagnostic.exceptionType,
         exceptionCode: diagnostic.exceptionCode,
         signal: diagnostic.signal,
+        virtualMemoryRegionInfo: diagnostic.virtualMemoryRegionInfo,
+        exceptionReason: diagnostic.exceptionReason.map {
+          ExceptionReasonSummary(
+            composedMessage: $0.composedMessage, formatString: $0.formatString,
+            arguments: $0.arguments, exceptionType: $0.exceptionType, className: $0.className,
+            exceptionName: $0.exceptionName)
+        },
         threadCount: threads.count,
-        topFrames: Array(topFrames)
+        topFrames: topFrames(from: diagnostic.callStackTree)
       )
       return summary(.crash(crash))
 
     case .hang(let diagnostic):
-      let threadCount = diagnostic.callStackTree.callStackThreads.count
+      let threads = diagnostic.callStackTree.callStackThreads
       let durationMs = diagnostic.hangDuration.converted(to: .milliseconds).value
-      return summary(.hang(durationMs: durationMs, threadCount: threadCount))
+      return summary(
+        .hang(
+          HangSummary(
+            durationMs: durationMs, threadCount: threads.count,
+            topFrames: topFrames(from: diagnostic.callStackTree))))
 
     case .appLaunch(let diagnostic):
-      let threadCount = diagnostic.callStackTree.callStackThreads.count
+      let threads = diagnostic.callStackTree.callStackThreads
       let durationMs = diagnostic.launchDuration.converted(to: .milliseconds).value
-      return summary(.appLaunch(durationMs: durationMs, threadCount: threadCount))
+      return summary(
+        .appLaunch(
+          AppLaunchSummary(
+            durationMs: durationMs, threadCount: threads.count,
+            topFrames: topFrames(from: diagnostic.callStackTree))))
 
     case .memoryException(let diagnostic):
-      let threadCount = diagnostic.callStackTree.callStackThreads.count
-      return summary(.memoryException(threadCount: threadCount))
+      let threads = diagnostic.callStackTree.callStackThreads
+      return summary(
+        .memoryException(
+          MemoryExceptionSummary(
+            threadCount: threads.count, topFrames: topFrames(from: diagnostic.callStackTree))))
 
     case .cpuException(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
-      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
-        FrameSummary(
-          binaryUUID: frame.binaryUUID?.uuidString,
-          offset: frame.offsetIntoBinaryTextSegment,
-          sampleCount: frame.sampleCount
-        )
-      }
       let exception = CPUExceptionSummary(
         totalCPUTimeMs: diagnostic.totalCPUTime.converted(to: .milliseconds).value,
         totalSampledTimeMs: diagnostic.totalSampledTime.converted(to: .milliseconds).value,
         threadCount: threads.count,
-        topFrames: Array(topFrames)
+        topFrames: topFrames(from: diagnostic.callStackTree)
       )
       return summary(.cpuException(exception))
 
     case .diskWriteException(let diagnostic):
       let threads = diagnostic.callStackTree.callStackThreads
-      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
-        FrameSummary(
-          binaryUUID: frame.binaryUUID?.uuidString,
-          offset: frame.offsetIntoBinaryTextSegment,
-          sampleCount: frame.sampleCount
-        )
-      }
       let exception = DiskWriteExceptionSummary(
         totalBytesWritten: diagnostic.totalBytesWritten.converted(to: .bytes).value,
         threadCount: threads.count,
-        topFrames: Array(topFrames)
+        topFrames: topFrames(from: diagnostic.callStackTree)
       )
       return summary(.diskWriteException(exception))
 
     @unknown default:
       return []
+    }
+  }
+
+  // MARK: - CallStackTree -> [FrameSummary]
+
+  /// Picks the thread MetricKit marked as attributed (the actual crashing/
+  /// hanging thread) rather than assuming it's first in the array. Real
+  /// captured fixtures happened to have the attributed thread at index 0,
+  /// but that's not something to rely on - `threadAttributed` exists
+  /// specifically so callers don't have to guess.
+  private static func attributedThread(in tree: CallStackTree) -> CallStackThread? {
+    let threads = tree.callStackThreads
+    return threads.first(where: { $0.threadAttributed == true }) ?? threads.first
+  }
+
+  /// Walks from a root frame down through `subFrames`, following the
+  /// branch with the highest `sampleCount` at each split (ties/missing
+  /// counts resolve to the first child). Real fixtures show a thread's
+  /// stack is often a single linear chain 50+ frames deep - `rootFrames`
+  /// alone (with no descent into `subFrames`) only ever gave the single
+  /// outermost, least specific frame.
+  private static func deepestPath(from frame: CallStackFrame) -> [CallStackFrame] {
+    var path = [frame]
+    var current = frame
+    while let next = current.subFrames.max(by: { ($0.sampleCount ?? 0) < ($1.sampleCount ?? 0) }) {
+      path.append(next)
+      current = next
+    }
+    return path
+  }
+
+  /// Innermost (crash/hang site) frame first, matching how a symbolicated
+  /// stack trace is conventionally read - frame 0 is where execution
+  /// actually was, not the outermost caller.
+  private static func topFrames(from tree: CallStackTree, limit: Int = 20) -> [FrameSummary] {
+    guard let thread = attributedThread(in: tree),
+      let root = thread.rootFrames.max(by: { ($0.sampleCount ?? 0) < ($1.sampleCount ?? 0) })
+    else { return [] }
+    return deepestPath(from: root).reversed().prefix(limit).map {
+      FrameSummary(
+        binaryUUID: $0.binaryUUID?.uuidString, offset: $0.offsetIntoBinaryTextSegment,
+        sampleCount: $0.sampleCount)
     }
   }
 
@@ -211,7 +254,7 @@ actor MetricKitBridge {
   /// start time of their own and how they anchor within the report's overall
   /// `timeRange` isn't documented. Deferred until confirmed empirically
   /// rather than guessed.
-  private static func summarizeMetrics(_ report: MetricReport) -> [MetricAggregateSummary] {
+  static func summarizeMetrics(_ report: MetricReport) -> [MetricAggregateSummary] {
     let windowStart = report.timeRange.start
     let windowEnd = report.timeRange.end
     // `environment` is optional on MetricReport (unlike DiagnosticReport,
@@ -220,13 +263,15 @@ actor MetricKitBridge {
     let lowPowerModeEnabled = report.environment?.lowPowerModeEnabled ?? false
     let isTestFlightApp = report.environment?.isTestFlightApp ?? false
     let hasExceededStateLimit = report.environment?.hasExceededStateLimit ?? false
+    let osBuildNumber = report.environment?.osVersion.buildNumber
 
     var summaries: [MetricAggregateSummary] = []
     for stateEntry in report.stateEntries {
       let states = [
         StateEntry(
           domain: stateEntry.state.domain, label: stateEntry.state.label,
-          metadata: metadataJSON(stateEntry.state.stableMetadata))
+          metadata: metadataJSON(stateEntry.state.stableMetadata),
+          durationMs: stateEntry.state.duration.converted(to: .milliseconds).value)
       ]
       for value in stateEntry.values {
         guard let kind = metricAggregateKind(for: value) else { continue }
@@ -234,7 +279,7 @@ actor MetricKitBridge {
           MetricAggregateSummary(
             states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind,
             lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp,
-            hasExceededStateLimit: hasExceededStateLimit))
+            hasExceededStateLimit: hasExceededStateLimit, osBuildNumber: osBuildNumber))
       }
     }
     return summaries

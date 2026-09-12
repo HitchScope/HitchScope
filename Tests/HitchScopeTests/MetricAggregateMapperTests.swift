@@ -33,6 +33,23 @@ final class MetricAggregateMapperTests: XCTestCase {
     XCTAssertEqual(event.peakMemoryMB, 312.5)
   }
 
+  func testOsBuildNumberIncludedInRawWhenPresent() {
+    let event = MetricAggregateMapper.map(
+      MetricAggregateSummary(
+        states: states, windowStart: windowStart, windowEnd: windowEnd,
+        kind: .peakMemory(megabytes: 100), osBuildNumber: "24A435"))
+
+    guard case .string("24A435") = event.raw["osBuildNumber"] else {
+      return XCTFail("expected osBuildNumber in raw")
+    }
+  }
+
+  func testOsBuildNumberOmittedFromRawWhenNil() {
+    let event = MetricAggregateMapper.map(summary(.peakMemory(megabytes: 100)))
+
+    XCTAssertNil(event.raw["osBuildNumber"])
+  }
+
   func testCPUTimeMapsToRaw() {
     let event = MetricAggregateMapper.map(summary(.cpuTime(ms: 4200)))
 
