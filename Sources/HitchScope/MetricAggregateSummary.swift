@@ -32,4 +32,25 @@ struct MetricAggregateSummary: Sendable {
   let windowStart: Date
   let windowEnd: Date
   let kind: MetricAggregateKind
+  /// From `MetricReport.Environment` - real report-level context, previously
+  /// dropped entirely. `hasExceededStateLimit` in particular is a real
+  /// correctness signal: the report hit an internal state-combination cap.
+  /// Defaulted so existing test call sites don't all need updating.
+  let lowPowerModeEnabled: Bool
+  let isTestFlightApp: Bool
+  let hasExceededStateLimit: Bool
+
+  init(
+    states: [StateEntry], windowStart: Date, windowEnd: Date, kind: MetricAggregateKind,
+    lowPowerModeEnabled: Bool = false, isTestFlightApp: Bool = false,
+    hasExceededStateLimit: Bool = false
+  ) {
+    self.states = states
+    self.windowStart = windowStart
+    self.windowEnd = windowEnd
+    self.kind = kind
+    self.lowPowerModeEnabled = lowPowerModeEnabled
+    self.isTestFlightApp = isTestFlightApp
+    self.hasExceededStateLimit = hasExceededStateLimit
+  }
 }

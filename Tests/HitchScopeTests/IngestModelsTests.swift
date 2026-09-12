@@ -46,6 +46,8 @@ final class IngestModelsTests: XCTestCase {
     XCTAssertEqual(EventKind.hang.rawValue, "HANG")
     XCTAssertEqual(EventKind.launch.rawValue, "LAUNCH")
     XCTAssertEqual(EventKind.memory.rawValue, "MEMORY")
+    XCTAssertEqual(EventKind.cpuException.rawValue, "CPU_EXCEPTION")
+    XCTAssertEqual(EventKind.diskWriteException.rawValue, "DISK_WRITE_EXCEPTION")
   }
 
   func testResponseDecodesAcceptedCount() throws {

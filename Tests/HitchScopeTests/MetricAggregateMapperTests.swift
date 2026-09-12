@@ -54,7 +54,12 @@ final class MetricAggregateMapperTests: XCTestCase {
       summary(.generic(kindName: "weird", encodedValue: encoded)))
 
     XCTAssertEqual(event.kind, "weird")
-    XCTAssertTrue(event.raw.isEmpty)
+    // The generic decode contributes nothing beyond the three report-context
+    // keys every event carries, regardless of kind.
+    XCTAssertEqual(event.raw.count, 3)
+    guard case .bool(false) = event.raw["lowPowerModeEnabled"] else {
+      return XCTFail("expected lowPowerModeEnabled context key even when generic decode fails")
+    }
   }
 
   // MARK: - Histogram percentile stats

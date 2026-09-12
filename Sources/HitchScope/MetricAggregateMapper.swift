@@ -120,7 +120,14 @@ enum MetricAggregateMapper {
     peakMemoryMB: Double? = nil,
     raw: [String: JSONValue]
   ) -> MetricAggregateIngestEvent {
-    MetricAggregateIngestEvent(
+    // Report-level context, not specific to any one metric kind - same
+    // three keys on every event, regardless of kind.
+    var raw = raw
+    raw["lowPowerModeEnabled"] = .bool(summary.lowPowerModeEnabled)
+    raw["isTestFlightApp"] = .bool(summary.isTestFlightApp)
+    raw["hasExceededStateLimit"] = .bool(summary.hasExceededStateLimit)
+
+    return MetricAggregateIngestEvent(
       kind: kind,
       states: summary.states,
       windowStart: summary.windowStart,

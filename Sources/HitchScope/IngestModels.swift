@@ -1,11 +1,13 @@
 import Foundation
 
-/// The four diagnostic event types hitchscope-backend's `/v1/ingest` accepts.
+/// The diagnostic event types hitchscope-backend's `/v1/ingest` accepts.
 public enum EventKind: String, Codable, Sendable {
   case crash = "CRASH"
   case hang = "HANG"
   case launch = "LAUNCH"
   case memory = "MEMORY"
+  case cpuException = "CPU_EXCEPTION"
+  case diskWriteException = "DISK_WRITE_EXCEPTION"
 }
 
 /// One state-reporting domain/label pair active when an event occurred.

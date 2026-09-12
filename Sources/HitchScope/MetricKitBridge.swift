@@ -119,6 +119,16 @@ actor MetricKitBridge {
     // `.start` of the report's time window — the closest available
     // approximation of when the underlying incident actually happened.
     let occurredAt = report.timeRange.start
+    let lowPowerModeEnabled = report.environment.lowPowerModeEnabled
+    let isTestFlightApp = report.environment.isTestFlightApp
+
+    func summary(_ kind: DiagnosticKind) -> [DiagnosticSummary] {
+      [
+        DiagnosticSummary(
+          states: states, occurredAt: occurredAt, kind: kind,
+          lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp)
+      ]
+    }
 
     switch report.result {
     case .crash(let diagnostic):
@@ -139,36 +149,54 @@ actor MetricKitBridge {
         threadCount: threads.count,
         topFrames: Array(topFrames)
       )
-      return [DiagnosticSummary(states: states, occurredAt: occurredAt, kind: .crash(crash))]
+      return summary(.crash(crash))
 
     case .hang(let diagnostic):
       let threadCount = diagnostic.callStackTree.callStackThreads.count
       let durationMs = diagnostic.hangDuration.converted(to: .milliseconds).value
-      return [
-        DiagnosticSummary(
-          states: states, occurredAt: occurredAt,
-          kind: .hang(durationMs: durationMs, threadCount: threadCount))
-      ]
+      return summary(.hang(durationMs: durationMs, threadCount: threadCount))
 
     case .appLaunch(let diagnostic):
       let threadCount = diagnostic.callStackTree.callStackThreads.count
       let durationMs = diagnostic.launchDuration.converted(to: .milliseconds).value
-      return [
-        DiagnosticSummary(
-          states: states, occurredAt: occurredAt,
-          kind: .appLaunch(durationMs: durationMs, threadCount: threadCount))
-      ]
+      return summary(.appLaunch(durationMs: durationMs, threadCount: threadCount))
 
     case .memoryException(let diagnostic):
       let threadCount = diagnostic.callStackTree.callStackThreads.count
-      return [
-        DiagnosticSummary(
-          states: states, occurredAt: occurredAt, kind: .memoryException(threadCount: threadCount))
-      ]
+      return summary(.memoryException(threadCount: threadCount))
 
-    case .cpuException, .diskWriteException:
-      // No slot in the backend's 4-type contract — dropped, not mis-mapped.
-      return []
+    case .cpuException(let diagnostic):
+      let threads = diagnostic.callStackTree.callStackThreads
+      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
+        FrameSummary(
+          binaryUUID: frame.binaryUUID?.uuidString,
+          offset: frame.offsetIntoBinaryTextSegment,
+          sampleCount: frame.sampleCount
+        )
+      }
+      let exception = CPUExceptionSummary(
+        totalCPUTimeMs: diagnostic.totalCPUTime.converted(to: .milliseconds).value,
+        totalSampledTimeMs: diagnostic.totalSampledTime.converted(to: .milliseconds).value,
+        threadCount: threads.count,
+        topFrames: Array(topFrames)
+      )
+      return summary(.cpuException(exception))
+
+    case .diskWriteException(let diagnostic):
+      let threads = diagnostic.callStackTree.callStackThreads
+      let topFrames = (threads.first?.rootFrames ?? []).prefix(5).map { frame in
+        FrameSummary(
+          binaryUUID: frame.binaryUUID?.uuidString,
+          offset: frame.offsetIntoBinaryTextSegment,
+          sampleCount: frame.sampleCount
+        )
+      }
+      let exception = DiskWriteExceptionSummary(
+        totalBytesWritten: diagnostic.totalBytesWritten.converted(to: .bytes).value,
+        threadCount: threads.count,
+        topFrames: Array(topFrames)
+      )
+      return summary(.diskWriteException(exception))
 
     @unknown default:
       return []
@@ -186,6 +214,12 @@ actor MetricKitBridge {
   private static func summarizeMetrics(_ report: MetricReport) -> [MetricAggregateSummary] {
     let windowStart = report.timeRange.start
     let windowEnd = report.timeRange.end
+    // `environment` is optional on MetricReport (unlike DiagnosticReport,
+    // where it's always present) - absent, not defaulted, when genuinely
+    // unknown rather than guessed as false.
+    let lowPowerModeEnabled = report.environment?.lowPowerModeEnabled ?? false
+    let isTestFlightApp = report.environment?.isTestFlightApp ?? false
+    let hasExceededStateLimit = report.environment?.hasExceededStateLimit ?? false
 
     var summaries: [MetricAggregateSummary] = []
     for stateEntry in report.stateEntries {
@@ -198,7 +232,9 @@ actor MetricKitBridge {
         guard let kind = metricAggregateKind(for: value) else { continue }
         summaries.append(
           MetricAggregateSummary(
-            states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind))
+            states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind,
+            lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp,
+            hasExceededStateLimit: hasExceededStateLimit))
       }
     }
     return summaries

@@ -95,15 +95,79 @@ final class EventMapperTests: XCTestCase {
     }
   }
 
+  func testCPUExceptionMapsTimesFramesAndThreadCount() {
+    let summary = DiagnosticSummary(
+      states: [], occurredAt: fixedDate,
+      kind: .cpuException(
+        CPUExceptionSummary(
+          totalCPUTimeMs: 5000, totalSampledTimeMs: 6000, threadCount: 8,
+          topFrames: [FrameSummary(binaryUUID: "ABC-123", offset: 0x200, sampleCount: 2)]
+        )))
+    let event = EventMapper.map(summary)
+
+    XCTAssertEqual(event.type, .cpuException)
+    guard case .double(5000) = event.payload["totalCPUTimeMs"] else {
+      return XCTFail("expected totalCPUTimeMs")
+    }
+    guard case .double(6000) = event.payload["totalSampledTimeMs"] else {
+      return XCTFail("expected totalSampledTimeMs")
+    }
+    guard case .int(8) = event.payload["threadCount"] else {
+      return XCTFail("expected threadCount")
+    }
+    guard case .array(let frames) = event.payload["topFrames"], frames.count == 1 else {
+      return XCTFail("expected one topFrame")
+    }
+  }
+
+  func testDiskWriteExceptionMapsBytesWrittenAndThreadCount() {
+    let summary = DiagnosticSummary(
+      states: [], occurredAt: fixedDate,
+      kind: .diskWriteException(
+        DiskWriteExceptionSummary(totalBytesWritten: 123_456, threadCount: 4, topFrames: [])))
+    let event = EventMapper.map(summary)
+
+    XCTAssertEqual(event.type, .diskWriteException)
+    guard case .double(123_456) = event.payload["totalBytesWritten"] else {
+      return XCTFail("expected totalBytesWritten")
+    }
+    guard case .int(4) = event.payload["threadCount"] else {
+      return XCTFail("expected threadCount")
+    }
+    XCTAssertNil(event.payload["topFrames"])
+  }
+
+  func testReportContextKeysReflectSummaryFlags() {
+    let summary = DiagnosticSummary(
+      states: [], occurredAt: fixedDate, kind: .memoryException(threadCount: 1),
+      lowPowerModeEnabled: true, isTestFlightApp: true)
+    let event = EventMapper.map(summary)
+
+    guard case .bool(true) = event.payload["lowPowerModeEnabled"] else {
+      return XCTFail("expected lowPowerModeEnabled to reflect the summary")
+    }
+    guard case .bool(true) = event.payload["isTestFlightApp"] else {
+      return XCTFail("expected isTestFlightApp to reflect the summary")
+    }
+  }
+
   func testMemoryExceptionOnlyHasThreadCount() {
     let summary = DiagnosticSummary(
       states: [], occurredAt: fixedDate, kind: .memoryException(threadCount: 5))
     let event = EventMapper.map(summary)
 
     XCTAssertEqual(event.type, .memory)
-    XCTAssertEqual(event.payload.count, 1)
+    // threadCount plus the two report-context keys every event carries,
+    // regardless of kind - not additional memory-specific fields.
+    XCTAssertEqual(event.payload.count, 3)
     guard case .int(5) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount")
+    }
+    guard case .bool(false) = event.payload["lowPowerModeEnabled"] else {
+      return XCTFail("expected lowPowerModeEnabled context key")
+    }
+    guard case .bool(false) = event.payload["isTestFlightApp"] else {
+      return XCTFail("expected isTestFlightApp context key")
     }
   }
 

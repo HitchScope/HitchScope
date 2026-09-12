@@ -5,7 +5,12 @@ import Foundation
 /// fully unit-testable.
 enum EventMapper {
   static func map(_ summary: DiagnosticSummary) -> IngestEvent {
-    let (type, payload) = payload(for: summary.kind)
+    let (type, kindPayload) = payload(for: summary.kind)
+    var payload = kindPayload
+    // Report-level context, not specific to any one diagnostic kind - same
+    // two keys on every event, regardless of type.
+    payload["lowPowerModeEnabled"] = .bool(summary.lowPowerModeEnabled)
+    payload["isTestFlightApp"] = .bool(summary.isTestFlightApp)
     return IngestEvent(
       type: type,
       states: summary.states,
@@ -43,6 +48,27 @@ enum EventMapper {
       // fields — don't invent isFatal/pressureLevel to match richer
       // synthetic data from earlier phases; this is what's actually there.
       return (.memory, ["threadCount": .int(threadCount)])
+
+    case .cpuException(let exception):
+      var payload: [String: JSONValue] = [
+        "totalCPUTimeMs": .double(exception.totalCPUTimeMs),
+        "totalSampledTimeMs": .double(exception.totalSampledTimeMs),
+        "threadCount": .int(exception.threadCount),
+      ]
+      if !exception.topFrames.isEmpty {
+        payload["topFrames"] = .array(exception.topFrames.map(frameJSON))
+      }
+      return (.cpuException, payload)
+
+    case .diskWriteException(let exception):
+      var payload: [String: JSONValue] = [
+        "totalBytesWritten": .double(exception.totalBytesWritten),
+        "threadCount": .int(exception.threadCount),
+      ]
+      if !exception.topFrames.isEmpty {
+        payload["topFrames"] = .array(exception.topFrames.map(frameJSON))
+      }
+      return (.diskWriteException, payload)
     }
   }
 
