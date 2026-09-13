@@ -114,6 +114,17 @@ struct ContentView: View {
     @State private var showingGPUBusy = false
     @State private var showingScrollJank = false
 
+    /// Fixed values (a label the State & Metadata buttons never use, and a
+    /// constant cartItems rather than that section's ever-incrementing
+    /// counter) so every problem trigger below always starts from the exact
+    /// same state/metadata, regardless of what was tapped before it - no
+    /// need to guess which State & Metadata button to tap first.
+    private func setReproducibleState() {
+        HitchScope.reportState(domain, label: "checkout", stableMetadata: ["userTier": .init("premium")])
+        HitchScope.updateVolatileMetadata(domain, ["cartItems": .init(3)])
+        HitchScope.reportState(experimentDomain, label: "variant_b")
+    }
+
     private func refreshLogLines() {
         Task.detached {
             let lines = fetchSDKLogLines()
@@ -203,12 +214,17 @@ struct ContentView: View {
                         }
                     } header: {
                         SectionHeader(title: "State & metadata")
+                    } footer: {
+                        Text(
+                            "Optional - every trigger below already sets its own fixed, reproducible state (checkout/variant_b) first. These are only for exploring state reporting on its own."
+                        )
+                        .foregroundStyle(HSPalette.textSecondary)
                     }
 
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(
-                                "A 2s hang has never actually produced a real diagnostic in testing - try 10s for better odds."
+                                "Sets state: checkout/variant_b, then blocks the main thread. A 2s hang has never actually produced a real diagnostic in testing - try 10s for better odds."
                             )
                             .font(.caption2)
                             .foregroundStyle(HSPalette.textSecondary)
@@ -218,9 +234,10 @@ struct ContentView: View {
                             }
                             .pickerStyle(.segmented)
                             Button("Trigger main-thread hang") {
+                                setReproducibleState()
                                 let duration = hangDuration
                                 lastAction =
-                                    "Blocking the main thread for \(Int(duration))s to trigger a real MetricKit hang diagnostic…"
+                                    "Set state: checkout/variant_b. Blocking the main thread for \(Int(duration))s to trigger a real MetricKit hang diagnostic…"
                                 // Deliberately synchronous on the main thread —
                                 // this is how you produce a genuine
                                 // MXHangDiagnostic on device; there's no way to
@@ -238,7 +255,7 @@ struct ContentView: View {
                             title: slowLaunchArmed
                                 ? "Armed — force-quit and relaunch now" : "Arm slow next launch (~3s stall)",
                             subtitle:
-                                "appLaunch fires for an unusually slow launch, not something a mid-session tap can produce. Arm, then force-quit and relaunch.",
+                                "appLaunch fires for an unusually slow launch, not something a mid-session tap can produce. Arm, then force-quit and relaunch. (No state to set here - the next launch starts with none.)",
                             isDisabled: slowLaunchArmed
                         ) {
                             SlowLaunchFlag.arm()
@@ -247,9 +264,10 @@ struct ContentView: View {
                         }
                         TriggerRow(
                             title: "Trigger crash",
-                            subtitle: "Terminates immediately - check for a new fixture after relaunching.",
+                            subtitle: "Sets state: checkout/variant_b, then terminates immediately - check for a new fixture after relaunching.",
                             isDestructive: true
                         ) {
+                            setReproducibleState()
                             // fatalError terminates synchronously - lastAction
                             // never gets a chance to render, so the subtitle
                             // above is static instead of a status update.
@@ -257,11 +275,12 @@ struct ContentView: View {
                         }
                         TriggerRow(
                             title: "Trigger memory exception",
-                            subtitle: "Allocates until the OS jetsam-kills the process - check after relaunching.",
+                            subtitle: "Sets state: checkout/variant_b, then allocates until the OS jetsam-kills the process - check after relaunching.",
                             isDestructive: true
                         ) {
+                            setReproducibleState()
                             lastAction =
-                                "Allocating memory until the OS terminates the app — relaunch afterward to check for a memory exception diagnostic."
+                                "Set state: checkout/variant_b. Allocating memory until the OS terminates the app — relaunch afterward to check for a memory exception diagnostic."
                             // Off the main thread so this reads as memory
                             // pressure, not another main-thread hang - the OS
                             // jetsam-kills the process once it exceeds its
@@ -280,11 +299,12 @@ struct ContentView: View {
                     Section {
                         TriggerRow(
                             title: isRunningCPUWorkload ? "Running CPU workload (~60s)…" : "Run CPU-busy workload (~60s)",
-                            subtitle: "Feeds cpuException if an undocumented threshold is crossed; always contributes to cpuTime/cpuInstructionsCount.",
+                            subtitle: "Sets state: checkout/variant_b, then feeds cpuException if an undocumented threshold is crossed; always contributes to cpuTime/cpuInstructionsCount.",
                             isDisabled: isRunningCPUWorkload
                         ) {
+                            setReproducibleState()
                             isRunningCPUWorkload = true
-                            lastAction = "Running 4 concurrent CPU-busy loops for ~60s…"
+                            lastAction = "Set state: checkout/variant_b. Running 4 concurrent CPU-busy loops for ~60s…"
                             Workloads.runCPUBusyWorkload {
                                 isRunningCPUWorkload = false
                                 lastAction = "CPU-busy workload finished."
@@ -293,11 +313,12 @@ struct ContentView: View {
                         TriggerRow(
                             title: isRunningDiskWorkload
                                 ? "Running disk-write workload (~60s)…" : "Run disk-write workload (~60s)",
-                            subtitle: "Feeds diskWriteException if an undocumented threshold is crossed - not guaranteed.",
+                            subtitle: "Sets state: checkout/variant_b, then feeds diskWriteException if an undocumented threshold is crossed - not guaranteed.",
                             isDisabled: isRunningDiskWorkload
                         ) {
+                            setReproducibleState()
                             isRunningDiskWorkload = true
-                            lastAction = "Writing to a scratch file for ~60s…"
+                            lastAction = "Set state: checkout/variant_b. Writing to a scratch file for ~60s…"
                             Workloads.runDiskWriteWorkload {
                                 isRunningDiskWorkload = false
                                 lastAction = "Disk-write workload finished, scratch file removed."
@@ -305,9 +326,10 @@ struct ContentView: View {
                         }
                         TriggerRow(
                             title: "Spike peak memory (~300MB, held 2s)",
-                            subtitle: "A bounded single spike - can set today's peakMemory without risking a jetsam kill."
+                            subtitle: "Sets state: checkout/variant_b, then a bounded single spike - can set today's peakMemory without risking a jetsam kill."
                         ) {
-                            lastAction = "Allocating a bounded ~300MB spike, held for 2s…"
+                            setReproducibleState()
+                            lastAction = "Set state: checkout/variant_b. Allocating a bounded ~300MB spike, held for 2s…"
                             Workloads.runPeakMemorySpike {
                                 lastAction = "Peak memory spike released."
                             }
@@ -319,14 +341,18 @@ struct ContentView: View {
                     Section {
                         TriggerRow(
                             title: "GPU Busy",
-                            subtitle: "Feeds gpuTime - stay on screen for a couple minutes for it to matter."
+                            subtitle: "Sets state: checkout/variant_b, then feeds gpuTime - stay on screen for a couple minutes for it to matter."
                         ) {
+                            setReproducibleState()
+                            lastAction = "Set state: checkout/variant_b. Opening GPU Busy…"
                             showingGPUBusy = true
                         }
                         TriggerRow(
                             title: "Scroll Jank",
-                            subtitle: "Feeds hitchTime - scroll up and down repeatedly for it to matter."
+                            subtitle: "Sets state: checkout/variant_b, then feeds hitchTime - scroll up and down repeatedly for it to matter."
                         ) {
+                            setReproducibleState()
+                            lastAction = "Set state: checkout/variant_b. Opening Scroll Jank…"
                             showingScrollJank = true
                         }
                     } header: {
@@ -337,9 +363,10 @@ struct ContentView: View {
                         TriggerRow(
                             title: "Run network workload (GET ~5MB + POST ~2MB)",
                             subtitle:
-                                "Real round-trip against httpbin.org - which of the 4 WiFi/cellular buckets it lands in depends on device connectivity, not the app."
+                                "Sets state: checkout/variant_b, then a real round-trip against httpbin.org - which of the 4 WiFi/cellular buckets it lands in depends on device connectivity, not the app."
                         ) {
-                            lastAction = "Running a real network GET + POST against httpbin.org…"
+                            setReproducibleState()
+                            lastAction = "Set state: checkout/variant_b. Running a real network GET + POST against httpbin.org…"
                             Workloads.runNetworkWorkload {
                                 lastAction = "Network workload finished."
                             }
