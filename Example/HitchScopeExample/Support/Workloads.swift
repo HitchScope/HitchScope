@@ -83,7 +83,7 @@ enum Workloads {
   /// data testing endpoint - no real user data leaves the device. Which of
   /// the 4 WiFi/cellular upload/download kinds this contributes to is
   /// decided by the device's actual connectivity at the time, not the app.
-  static func runNetworkWorkload(completion: @escaping () -> Void) {
+  static func runNetworkWorkload(completion: @escaping @MainActor @Sendable () -> Void) {
     Task.detached {
       if let url = URL(string: "https://httpbin.org/bytes/5000000") {
         _ = try? await URLSession.shared.data(from: url)
