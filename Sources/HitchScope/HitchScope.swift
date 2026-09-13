@@ -32,6 +32,12 @@ public struct HitchScope {
   /// Do not call this at high frequency (e.g. per-frame, in a scroll
   /// handler) — StateReporting rate-limits at human-interaction timescales
   /// and silently drops data called faster than that.
+  ///
+  /// `stableMetadata` is transmitted off-device as part of the diagnostic/
+  /// metric payload — never include personal or identifying data (email,
+  /// name, precise location, account ID, etc.) in it. This SDK's privacy
+  /// manifest declares this field as non-identifying "Other Data"; that
+  /// declaration depends on callers not putting PII into it.
   public static func reportState(
     _ domain: String,
     label: String?,
@@ -51,6 +57,11 @@ public struct HitchScope {
   /// Update volatile metadata for the currently active state on a domain,
   /// without a full transition. No-op if no state is currently active on
   /// that domain. Same rate-limit caveat as `reportState` applies.
+  ///
+  /// Unlike `stableMetadata`, this SDK never reads volatile metadata back out
+  /// of MetricKit's reports, so nothing here reaches HitchScope's backend —
+  /// but Apple's on-device StateReporting API still receives it, so the same
+  /// rule applies: never include personal or identifying data.
   public static func updateVolatileMetadata(
     _ domain: String, _ metadata: [String: HitchScopeMetadataValue]
   ) {
