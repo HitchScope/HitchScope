@@ -42,6 +42,12 @@ struct ContentView: View {
     @State private var logLines: [String] = []
     @State private var capturedFixtureURLs: [URL] = []
     @State private var cartItems: Int = 0
+    @State private var hangDuration: Double = 2
+    @State private var slowLaunchArmed: Bool = SlowLaunchFlag.isArmed
+    @State private var isRunningCPUWorkload = false
+    @State private var isRunningDiskWorkload = false
+    @State private var showingGPUBusy = false
+    @State private var showingScrollJank = false
 
     private func refreshLogLines() {
         Task.detached {
@@ -129,15 +135,100 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
 
             VStack(spacing: 8) {
-                Button("Trigger 2s main-thread hang", role: .destructive) {
-                    lastAction = "Blocking the main thread for 2s to trigger a real MetricKit hang diagnostic…"
+                // A 2s hang has never actually produced a real hang
+                // diagnostic in testing (unlike crash/memory, confirmed
+                // within a minute) - offering a longer duration too, since
+                // Apple's own hang-severity buckets go well past 2s.
+                Picker("Hang duration", selection: $hangDuration) {
+                    Text("2s").tag(2.0)
+                    Text("10s").tag(10.0)
+                }
+                .pickerStyle(.segmented)
+                Button("Trigger main-thread hang", role: .destructive) {
+                    let duration = hangDuration
+                    lastAction =
+                        "Blocking the main thread for \(Int(duration))s to trigger a real MetricKit hang diagnostic…"
                     // Deliberately synchronous on the main thread — this is
                     // how you produce a genuine MXHangDiagnostic on device;
                     // there's no way to fake one via the SDK's own API.
-                    Thread.sleep(forTimeInterval: 2)
+                    Thread.sleep(forTimeInterval: duration)
                     lastAction =
                         "Hang triggered. Unlike crash/memory (confirmed within a minute of relaunching in testing), a hang diagnostic hasn't been confirmed to arrive through this pipeline yet - no known timing to expect."
                 }
+            }
+            .buttonStyle(.borderedProminent)
+
+            VStack(spacing: 8) {
+                Text(
+                    "appLaunch fires for an unusually slow launch - can't be triggered mid-session. Arm this, then force-quit and relaunch the app."
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                Button(slowLaunchArmed ? "Armed — force-quit and relaunch now" : "Arm slow next launch (~3s stall)") {
+                    SlowLaunchFlag.arm()
+                    slowLaunchArmed = true
+                    lastAction = "Armed a ~3s stall for the next app launch. Force-quit via the App Switcher, then relaunch."
+                }
+                .disabled(slowLaunchArmed)
+            }
+            .buttonStyle(.borderedProminent)
+
+            VStack(spacing: 8) {
+                Text(
+                    "cpuException/diskWriteException fire only if an undocumented Apple threshold is crossed - not guaranteed. cpuTime/cpuInstructionsCount always get real contributed work either way."
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                Button(isRunningCPUWorkload ? "Running CPU workload (~60s)…" : "Run CPU-busy workload (~60s)") {
+                    isRunningCPUWorkload = true
+                    lastAction = "Running 4 concurrent CPU-busy loops for ~60s…"
+                    Workloads.runCPUBusyWorkload {
+                        isRunningCPUWorkload = false
+                        lastAction = "CPU-busy workload finished."
+                    }
+                }
+                .disabled(isRunningCPUWorkload)
+                Button(
+                    isRunningDiskWorkload ? "Running disk-write workload (~60s)…" : "Run disk-write workload (~60s)"
+                ) {
+                    isRunningDiskWorkload = true
+                    lastAction = "Writing to a scratch file for ~60s…"
+                    Workloads.runDiskWriteWorkload {
+                        isRunningDiskWorkload = false
+                        lastAction = "Disk-write workload finished, scratch file removed."
+                    }
+                }
+                .disabled(isRunningDiskWorkload)
+            }
+            .buttonStyle(.borderedProminent)
+
+            VStack(spacing: 8) {
+                Button("Spike peak memory (~300MB, held 2s)") {
+                    lastAction = "Allocating a bounded ~300MB spike, held for 2s…"
+                    Workloads.runPeakMemorySpike {
+                        lastAction = "Peak memory spike released."
+                    }
+                }
+                Button("Run network workload (GET ~5MB + POST ~2MB)") {
+                    lastAction = "Running a real network GET + POST against httpbin.org…"
+                    Workloads.runNetworkWorkload {
+                        lastAction = "Network workload finished."
+                    }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+
+            VStack(spacing: 8) {
+                Text(
+                    "gpuTime/hitchTime are continuous daily aggregates - stay on these screens and interact for a couple minutes each for the data to matter."
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                Button("GPU Busy") { showingGPUBusy = true }
+                Button("Scroll Jank") { showingScrollJank = true }
             }
             .buttonStyle(.borderedProminent)
 
@@ -216,6 +307,8 @@ struct ContentView: View {
         .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in
             refreshLogLines()
         }
+        .sheet(isPresented: $showingGPUBusy) { GPUBusyView() }
+        .sheet(isPresented: $showingScrollJank) { ScrollJankView() }
     }
 }
 

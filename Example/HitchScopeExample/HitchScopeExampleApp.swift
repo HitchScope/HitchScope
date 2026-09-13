@@ -4,6 +4,15 @@ import HitchScope
 @main
 struct HitchScopeExampleApp: App {
     init() {
+        // Deliberately checked/cleared *before* HitchScope.configure -
+        // appLaunch diagnostics measure the whole launch, so a deliberate
+        // stall needs to happen as early as possible, and clearing the flag
+        // immediately (not after the stall) means a crash mid-stall can't
+        // wedge every future launch into stalling forever.
+        if SlowLaunchFlag.consume() {
+            Thread.sleep(forTimeInterval: 3)
+        }
+
         // Matches the seeded dev app in hitchscope-backend's prisma/seed.ts —
         // "preview" isn't a real app and gets a 401 from every ingest call.
         // Two domains, not one - demonstrates that domains are independent
