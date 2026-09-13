@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "HitchScope", targets: ["HitchScope"])
     ],
     targets: [
-        .target(name: "HitchScope"),
+        .target(name: "HitchScope", resources: [.copy("PrivacyInfo.xcprivacy")]),
         .testTarget(
             name: "HitchScopeTests", dependencies: ["HitchScope"],
             resources: [.copy("Fixtures")])
