@@ -28,3 +28,8 @@ DerivedData/
 # own, and it's tied to this specific generated copy's UUIDs, not something
 # that should be committed.
 Example/HitchScopeExample.xcodeproj/xcshareddata/xcodecloud/
+
+# Real API key - this repo is public. Secrets.swift.example (committed)
+# shows the shape; ci_post_clone.sh creates a CI-only placeholder so builds
+# don't depend on this file existing.
+Example/HitchScopeExample/Secrets.swift

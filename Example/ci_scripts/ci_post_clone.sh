@@ -12,4 +12,17 @@ brew install xcodegen
 # repo root - more reliable than assuming this script's working directory,
 # which Xcode Cloud doesn't guarantee.
 cd "$CI_PRIMARY_REPOSITORY_PATH/Example"
+
+# Secrets.swift is gitignored (real API key, this repo is public) - a fresh
+# CI clone never has it. HitchScopeExampleApp.swift references Secrets.apiKey
+# directly, so the file must exist for the target to compile at all; CI only
+# needs the project to *build*, not actually ingest, so a placeholder is enough.
+if [ ! -f HitchScopeExample/Secrets.swift ]; then
+  cat > HitchScopeExample/Secrets.swift <<'EOF'
+enum Secrets {
+  static let apiKey = "ci-placeholder-not-a-real-key"
+}
+EOF
+fi
+
 xcodegen generate

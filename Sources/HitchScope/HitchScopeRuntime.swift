@@ -5,7 +5,7 @@ actor HitchScopeRuntime {
   static let shared = HitchScopeRuntime()
 
   private static let log = OSLog(subsystem: "com.hitchscope.sdk", category: "HitchScope")
-  private static let baseURL = URL(string: "https://hitchscope.onrender.com")!
+  private static let baseURL = URL(string: "https://api.hitchscope.com")!
   private static let bufferLimit = 500
 
   private var apiKey: String?
