@@ -11,10 +11,10 @@ import XCTest
 /// for a test, and hand-written doubles can't prove the real wire format
 /// parses correctly.
 ///
-/// Two fixtures, deliberately different shapes:
-/// - `metric-20260913T053136.820`: `stateEntries` is empty - all of this
-///   report's real content lives in `intervalEntries`, which
-///   `summarizeMetrics` doesn't read (see the future-roadmap note on
+/// Four fixtures, three deliberately different shapes:
+/// - `metric-20260913T053136.820` and `metric-20260914T051245.159`:
+///   `stateEntries` is empty (real content lives in `intervalEntries`,
+///   which `summarizeMetrics` doesn't read - see the future-roadmap note on
 ///   `intervalEntries`). Confirms that's a clean, non-crashing no-op today,
 ///   not silently mishandled data.
 /// - `metric-20260913T053136.822`: real multi-domain, multi-state data -
@@ -22,6 +22,12 @@ import XCTest
 ///   expectations below were cross-checked against `/v1/metric-aggregates`
 ///   independently of this test, not just re-derived from
 ///   `MetricKitBridge`'s own logic.
+/// - `metric-20260914T051245.161`: a shape none of the other three cover -
+///   `stateEntries` is non-empty (5 real states, both domains, one with
+///   `userTier` stableMetadata) but every entry's `values` array is itself
+///   empty. Confirms `summarizeMetrics` walks real multi-domain state data
+///   without producing spurious empty-metric summaries, rather than that
+///   emptiness alone (as with `.820`/`.159`) is what keeps it quiet.
 final class MetricKitBridgeMetricFixtureTests: XCTestCase {
   private func loadFixture(_ name: String) throws -> MetricReport {
     let url = try XCTUnwrap(
@@ -51,14 +57,40 @@ final class MetricKitBridgeMetricFixtureTests: XCTestCase {
   }
 
   func testIntervalEntriesOnlyReportProducesNoSummariesWithoutCrashing() throws {
-    let report = try loadFixture("metric-20260913T053136.820")
-    XCTAssertTrue(
-      report.stateEntries.isEmpty, "fixture assumption: this report has no stateEntries")
+    for name in ["metric-20260913T053136.820", "metric-20260914T051245.159"] {
+      let report = try loadFixture(name)
+      XCTAssertTrue(
+        report.stateEntries.isEmpty, "\(name): fixture assumption: this report has no stateEntries")
+
+      let summaries = MetricKitBridge.summarizeMetrics(report)
+
+      XCTAssertTrue(
+        summaries.isEmpty,
+        "\(name): a stateEntries-empty report should produce zero summaries today")
+    }
+  }
+
+  /// Independently counted from the raw fixture JSON (not derived from
+  /// `summarizeMetrics`' own logic): 5 real state entries - both domains,
+  /// one with `userTier` stableMetadata - but every entry's `values` array
+  /// is empty, so `summarizeMetrics` still produces zero summaries. Unlike
+  /// `.820`/`.159` above, that emptiness isn't because `stateEntries` itself
+  /// is empty.
+  func testStateOnlyMultiDomainReportProducesNoSummaries() throws {
+    let report = try loadFixture("metric-20260914T051245.161")
+
+    XCTAssertEqual(report.stateEntries.count, 5)
+    for stateEntry in report.stateEntries {
+      XCTAssertTrue(stateEntry.values.isEmpty)
+    }
+    let domains = Set(report.stateEntries.map(\.state.domain))
+    XCTAssertTrue(domains.contains("com.hitchscope.example.screen"))
+    XCTAssertTrue(domains.contains("com.hitchscope.example.experiment.checkout_redesign"))
 
     let summaries = MetricKitBridge.summarizeMetrics(report)
-
     XCTAssertTrue(
-      summaries.isEmpty, "a stateEntries-empty report should produce zero summaries today")
+      summaries.isEmpty,
+      "every real stateEntry has empty values, so summarizeMetrics should still produce nothing")
   }
 
   /// Independently counted from the raw fixture JSON (not derived from
@@ -131,7 +163,10 @@ final class MetricKitBridgeMetricFixtureTests: XCTestCase {
   }
 
   func testEveryRealSummaryMapsToAnIngestEventWithoutCrashing() throws {
-    for name in ["metric-20260913T053136.820", "metric-20260913T053136.822"] {
+    for name in [
+      "metric-20260913T053136.820", "metric-20260913T053136.822",
+      "metric-20260914T051245.159", "metric-20260914T051245.161",
+    ] {
       let report = try loadFixture(name)
       for summary in MetricKitBridge.summarizeMetrics(report) {
         _ = MetricAggregateMapper.map(summary)
