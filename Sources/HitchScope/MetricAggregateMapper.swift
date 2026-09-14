@@ -190,6 +190,7 @@ enum MetricAggregateMapper {
       totalHitchMs: totalHitchMs,
       totalAnimMs: totalAnimMs,
       peakMemoryMB: peakMemoryMB,
+      source: summary.source.rawValue,
       raw: raw
     )
   }

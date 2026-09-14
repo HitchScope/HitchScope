@@ -52,6 +52,19 @@ enum MetricAggregateKind: Sendable {
   case generic(kindName: String, encodedValue: Data)
 }
 
+/// Which part of a `MetricReport` a `MetricAggregateSummary` was built from.
+/// `stateSnapshot` (`report.stateEntries`) is the original, still-default
+/// source. `fullDayInterval` (`report.intervalEntries.fullDayEntry`) is real
+/// data recovered from a report whose `stateEntries` can carry empty
+/// `values` on days MetricKit chooses to report that way instead - kept as a
+/// distinct source rather than merged, so a reader can tell which report
+/// section a row came from instead of risking double-counting the same
+/// underlying measurement.
+enum MetricAggregateSource: String, Codable, Sendable {
+  case stateSnapshot
+  case fullDayInterval
+}
+
 /// A plain, fully constructible summary of one state's metric values within
 /// one `MetricReport` window — the boundary between Apple's framework types
 /// (no public initializers, can't be constructed in tests) and everything
@@ -71,11 +84,13 @@ struct MetricAggregateSummary: Sendable {
   /// From `environment.osVersion.buildNumber` - see `DiagnosticSummary`'s
   /// field of the same name for why this is worth the extra string.
   let osBuildNumber: String?
+  let source: MetricAggregateSource
 
   init(
     states: [StateEntry], windowStart: Date, windowEnd: Date, kind: MetricAggregateKind,
     lowPowerModeEnabled: Bool = false, isTestFlightApp: Bool = false,
-    hasExceededStateLimit: Bool = false, osBuildNumber: String? = nil
+    hasExceededStateLimit: Bool = false, osBuildNumber: String? = nil,
+    source: MetricAggregateSource = .stateSnapshot
   ) {
     self.states = states
     self.windowStart = windowStart
@@ -85,5 +100,6 @@ struct MetricAggregateSummary: Sendable {
     self.isTestFlightApp = isTestFlightApp
     self.hasExceededStateLimit = hasExceededStateLimit
     self.osBuildNumber = osBuildNumber
+    self.source = source
   }
 }

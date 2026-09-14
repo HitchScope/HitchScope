@@ -19,6 +19,10 @@ struct MetricAggregateIngestEvent: Codable, Sendable {
   let totalHitchMs: Double?
   let totalAnimMs: Double?
   let peakMemoryMB: Double?
+  /// `MetricAggregateSource.rawValue` - which part of the `MetricReport` this
+  /// was built from ("stateSnapshot" or "fullDayInterval"). Kept as a plain
+  /// string, matching `kind`'s own "no shared enum with the backend" choice.
+  let source: String
   let raw: [String: JSONValue]
 }
 

@@ -54,10 +54,11 @@ actor MetricKitBridge {
         // Metrics arrive as a whole report at once (roughly daily, per
         // Apple's own docs) - batch the whole report into one flush rather
         // than one per value, keeping each ingest payload coherent.
-        let summaries = Self.summarizeMetrics(report)
+        let summaries = Self.summarizeMetrics(report) + Self.summarizeFullDayInterval(report)
         os_log(
-          .default, log: Self.log, "received metricReport: %d state entries, %d summaries",
-          report.stateEntries.count, summaries.count)
+          .default, log: Self.log,
+          "received metricReport: %d state entries, %d summaries, %d interval entries",
+          report.stateEntries.count, summaries.count, report.intervalEntries.count)
         let events = summaries.map(MetricAggregateMapper.map)
         await sink.enqueueMetrics(events)
       }
@@ -188,10 +189,10 @@ actor MetricKitBridge {
 
   /// Iterates `report.stateEntries` only (one state, full-day window,
   /// unambiguous `windowStart`/`windowEnd` from `report.timeRange`) — NOT
-  /// `report.intervalEntries`, whose sub-day windows don't carry an absolute
+  /// `report.intervalEntries`, whose sub-day entries don't carry an absolute
   /// start time of their own and how they anchor within the report's overall
-  /// `timeRange` isn't documented. Deferred until confirmed empirically
-  /// rather than guessed.
+  /// `timeRange` isn't documented (see `summarizeFullDayInterval` below for
+  /// the one `intervalEntries` entry whose semantics *are* unambiguous).
   static func summarizeMetrics(_ report: MetricReport) -> [MetricAggregateSummary] {
     let windowStart = report.timeRange.start
     let windowEnd = report.timeRange.end
@@ -219,6 +220,50 @@ actor MetricKitBridge {
             lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp,
             hasExceededStateLimit: hasExceededStateLimit, osBuildNumber: osBuildNumber))
       }
+    }
+    return summaries
+  }
+
+  /// Real data recovered from `report.intervalEntries.fullDayEntry` - the one
+  /// entry Apple's own `MetricKit` framework already singles out (via that
+  /// accessor) as spanning the report's entire `timeRange`, unlike every
+  /// other `intervalEntries` entry. Confirmed against two independent real
+  /// device captures: on days `stateEntries` carries empty `values`, this is
+  /// the *only* place that day's real metric data exists - a full day's
+  /// hitch/hang/termination numbers otherwise silently dropped. Every other
+  /// `intervalEntries` entry (sub-day, no unambiguous anchor - see
+  /// `summarizeMetrics` above) is still not read.
+  static func summarizeFullDayInterval(_ report: MetricReport) -> [MetricAggregateSummary] {
+    // `.fullDayEntry`'s behavior on an empty array isn't documented - guard
+    // rather than risk a trap.
+    guard !report.intervalEntries.isEmpty else { return [] }
+    let entry = report.intervalEntries.fullDayEntry
+
+    let windowStart = report.timeRange.start
+    let windowEnd = report.timeRange.end
+    let lowPowerModeEnabled = report.environment?.lowPowerModeEnabled ?? false
+    let isTestFlightApp = report.environment?.isTestFlightApp ?? false
+    let hasExceededStateLimit = report.environment?.hasExceededStateLimit ?? false
+    let osBuildNumber = report.environment?.osVersion.buildNumber
+
+    // Unlike `stateEntries` (always exactly one state), an interval entry's
+    // `states` is the real simultaneous combination across every domain -
+    // carried through as-is, not collapsed to one.
+    let states = entry.states.map {
+      StateEntry(
+        domain: $0.domain, label: $0.label, metadata: metadataJSON($0.stableMetadata),
+        durationMs: $0.duration.converted(to: .milliseconds).value)
+    }
+
+    var summaries: [MetricAggregateSummary] = []
+    for value in entry.values {
+      guard let kind = metricAggregateKind(for: value) else { continue }
+      summaries.append(
+        MetricAggregateSummary(
+          states: states, windowStart: windowStart, windowEnd: windowEnd, kind: kind,
+          lowPowerModeEnabled: lowPowerModeEnabled, isTestFlightApp: isTestFlightApp,
+          hasExceededStateLimit: hasExceededStateLimit, osBuildNumber: osBuildNumber,
+          source: .fullDayInterval))
     }
     return summaries
   }
