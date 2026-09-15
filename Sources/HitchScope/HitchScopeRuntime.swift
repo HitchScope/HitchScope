@@ -117,22 +117,25 @@ actor HitchScopeRuntime {
     guard let apiKey, !buffer.isEmpty else { return }
     let client = IngestClient(baseURL: Self.baseURL, apiKey: apiKey)
     let pending = buffer
-    let result = await client.send(
+    let outcome = await client.send(
       appVersion: DeviceMetadata.appVersion,
       osVersion: DeviceMetadata.osVersion,
       deviceModel: DeviceMetadata.deviceModel,
       events: pending
     )
-    switch result {
-    case .success(let accepted):
-      // Only clear what we actually sent — more may have been enqueued
-      // concurrently while this flush was in flight.
-      buffer.removeFirst(min(pending.count, buffer.count))
-      os_log(.default, log: Self.log, "flushed %d diagnostic event(s)", accepted)
-    case .failure(let error):
+    // Drop whatever was actually sent, even on a partial failure (some
+    // chunks succeeded before one failed) — more may also have been
+    // enqueued concurrently while this flush was in flight, so this can
+    // never remove more than `pending`'s own prefix.
+    if outcome.sentCount > 0 {
+      buffer.removeFirst(min(outcome.sentCount, buffer.count))
+    }
+    if let error = outcome.error {
       os_log(
         .error, log: Self.log, "flush failed, will retry on next event: %{public}@",
         String(describing: error))
+    } else {
+      os_log(.default, log: Self.log, "flushed %d diagnostic event(s)", outcome.accepted)
     }
   }
 
@@ -140,20 +143,21 @@ actor HitchScopeRuntime {
     guard let apiKey, !metricBuffer.isEmpty else { return }
     let client = IngestClient(baseURL: Self.baseURL, apiKey: apiKey)
     let pending = metricBuffer
-    let result = await client.sendMetrics(
+    let outcome = await client.sendMetrics(
       appVersion: DeviceMetadata.appVersion,
       osVersion: DeviceMetadata.osVersion,
       deviceModel: DeviceMetadata.deviceModel,
       metrics: pending
     )
-    switch result {
-    case .success(let accepted):
-      metricBuffer.removeFirst(min(pending.count, metricBuffer.count))
-      os_log(.default, log: Self.log, "flushed %d metric aggregate(s)", accepted)
-    case .failure(let error):
+    if outcome.sentCount > 0 {
+      metricBuffer.removeFirst(min(outcome.sentCount, metricBuffer.count))
+    }
+    if let error = outcome.error {
       os_log(
         .error, log: Self.log, "metrics flush failed, will retry on next report: %{public}@",
         String(describing: error))
+    } else {
+      os_log(.default, log: Self.log, "flushed %d metric aggregate(s)", outcome.accepted)
     }
   }
 }
