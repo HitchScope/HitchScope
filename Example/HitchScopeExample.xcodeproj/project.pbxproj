@@ -32,6 +32,7 @@
 		DB4335A1E4F2F68AB54AFAF4 /* Workloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8895EF23E301A74FC0085CA6 /* Workloads.swift */; };
 		E9335CD15F643D2128B7A93F /* OtherMetricsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52141ED2BC1B18F855EFB56D /* OtherMetricsScreen.swift */; };
 		EAD37D2325266156A2CC9E5F /* MemoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E183A4DD5EF3BD58EDF7A70 /* MemoryScreen.swift */; };
+		F5D64E8B1460BC9617EC49C6 /* FixtureCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8987B5BBC459D8527A4B3E /* FixtureCapture.swift */; };
 		F74783145A3B9E0D1C963CEF /* MetricScreenHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 616339831A80CB15334F379C /* MetricScreenHeader.swift */; };
 /* End PBXBuildFile section */
 
@@ -59,6 +60,7 @@
 		A0BA3545E595F95C7A00CF72 /* HangsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HangsScreen.swift; sourceTree = "<group>"; };
 		A7C63C50C79E646AB06F0375 /* HitchScope */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HitchScope; path = ..; sourceTree = SOURCE_ROOT; };
 		BD62F9FC39FC3260FF748C1E /* DiskWritesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskWritesScreen.swift; sourceTree = "<group>"; };
+		BD8987B5BBC459D8527A4B3E /* FixtureCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureCapture.swift; sourceTree = "<group>"; };
 		C742B5D8CC18C19B5EFA2F34 /* NetworkScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScreen.swift; sourceTree = "<group>"; };
 		CD7FD4FD404798F5880C5EFB /* CrashesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashesScreen.swift; sourceTree = "<group>"; };
 		D5C5E06B544BBE48560B9FC2 /* GPUScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUScreen.swift; sourceTree = "<group>"; };
@@ -111,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				7103D3582C0D03E5D7135C71 /* AppStyle.swift */,
+				BD8987B5BBC459D8527A4B3E /* FixtureCapture.swift */,
 				99946AE15843EC99DE4BE71A /* MetricCatalog.swift */,
 				F0A1CF78299AD709FEB359D3 /* MetricRowLabel.swift */,
 				616339831A80CB15334F379C /* MetricScreenHeader.swift */,
@@ -231,6 +234,7 @@
 				CB080D35F07CFC8E943A296F /* ContentView.swift in Sources */,
 				8FECA0AC6A071905CAFE2597 /* CrashesScreen.swift in Sources */,
 				70F3793D1E460AD2D4ED3935 /* DiskWritesScreen.swift in Sources */,
+				F5D64E8B1460BC9617EC49C6 /* FixtureCapture.swift in Sources */,
 				A2D37C0C57B3AF6939EDC7D0 /* GPUScreen.swift in Sources */,
 				487FA02D62DACD2B4BF22240 /* HangsScreen.swift in Sources */,
 				A9E712F1D9524CE1C392C626 /* HitchScopeExampleApp.swift in Sources */,

@@ -21,16 +21,10 @@ private func fetchSDKLogLines() -> [String] {
     }
 }
 
-/// Same path `MetricKitBridge` writes captured fixtures to (duplicated, not
-/// shared as SDK API - this capture mechanism is temporary scaffolding, see
-/// the MetricKit fixture-test-harness plan).
-private let fixturesDirectory =
-    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("HitchScopeFixtures", isDirectory: true)
-
 private func fetchCapturedFixtureURLs() -> [URL] {
     (try? FileManager.default.contentsOfDirectory(
-        at: fixturesDirectory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+        at: FixtureCapture.fixturesDirectory, includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles])) ?? []
 }
 
 struct ContentView: View {
