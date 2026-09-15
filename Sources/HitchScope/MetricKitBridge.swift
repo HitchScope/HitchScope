@@ -299,7 +299,12 @@ actor MetricKitBridge {
       // Case name via reflection (not a hand-maintained switch) so this
       // stays correct as Apple adds new MetricResult cases over time.
       let kindName = Mirror(reflecting: result).children.first?.label ?? "unknown"
-      guard let encoded = try? JSONEncoder().encode(result) else { return nil }
+      guard let encoded = try? JSONEncoder().encode(result) else {
+        os_log(
+          .error, log: Self.log, "failed to encode generic metric value: kind=%{public}@",
+          kindName)
+        return nil
+      }
       return .generic(kindName: kindName, encodedValue: encoded)
     }
   }
