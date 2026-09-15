@@ -25,14 +25,24 @@ struct HitchScopeExampleApp: App {
             Secrets.apiKey != "ci-placeholder-not-a-real-key",
             "Secrets.swift has the CI placeholder key, not a real one - see Secrets.swift.example.")
 
-        // Two domains, not one - demonstrates that domains are independent
-        // (a screen and an experiment variant can both be active at once,
-        // each with its own current label) rather than one privileged slot.
+        // Several independent domains, not one - each screen/experiment
+        // tracks its own current label simultaneously, with none privileged:
+        // .screen (auto-reported by every screen via reportsScreenState),
+        // .fixture (the shared "checkout" business-state fixture triggers
+        // set before reproducing a problem), .demo + .experiment.demo (the
+        // State Reporting API screen's own manual demo domains), and one
+        // .experiment.<metricID> per metric screen with an A/B toggle.
         HitchScope.configure(
             apiKey: Secrets.apiKey,
             trackedStates: [
                 "com.hitchscope.example.screen",
-                "com.hitchscope.example.experiment.checkout_redesign",
+                "com.hitchscope.example.fixture",
+                "com.hitchscope.example.demo",
+                "com.hitchscope.example.experiment.demo",
+                "com.hitchscope.example.experiment.hangs",
+                "com.hitchscope.example.experiment.cpu",
+                "com.hitchscope.example.experiment.diskWrites",
+                "com.hitchscope.example.experiment.scrollHitches",
             ])
     }
 

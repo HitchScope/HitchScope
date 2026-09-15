@@ -7,28 +7,62 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		00E3B91524E26DDD492DE168 /* GPUBusyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97A0F0B667AAA1CC0D87881 /* GPUBusyView.swift */; };
+		01061AEDDC5C047939586D5C /* NetworkScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C742B5D8CC18C19B5EFA2F34 /* NetworkScreen.swift */; };
 		06640A6BD176BDA1DCE8570C /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E9D880200A8CF3BE8D565 /* Secrets.swift */; };
+		0AC043EBA02D3A9E88A7E210 /* MetricRowLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A1CF78299AD709FEB359D3 /* MetricRowLabel.swift */; };
+		1F38C4D9C9B7B8E00E02E944 /* MetricCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99946AE15843EC99DE4BE71A /* MetricCatalog.swift */; };
+		20801F92A32331A9D920A80A /* CPUScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92DBD6861126DA8F3AEC054A /* CPUScreen.swift */; };
 		45B9F7ED5182E0172E5018AC /* HitchScope in Frameworks */ = {isa = PBXBuildFile; productRef = C51761B8336B5D4141CA214B /* HitchScope */; };
+		45C09CFCD81E43035C5A129B /* TerminationsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A72DCC78ED4646F01F1D72 /* TerminationsScreen.swift */; };
+		487FA02D62DACD2B4BF22240 /* HangsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0BA3545E595F95C7A00CF72 /* HangsScreen.swift */; };
+		546CD57B3479A1F54FF26098 /* ScrollHitchesScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9431E3724A728DCFDC3180C7 /* ScrollHitchesScreen.swift */; };
 		70DAEF672B6305AF50CB92F6 /* SlowLaunchFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC3573B08BFD64DD313AB30 /* SlowLaunchFlag.swift */; };
+		70F3793D1E460AD2D4ED3935 /* DiskWritesScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD62F9FC39FC3260FF748C1E /* DiskWritesScreen.swift */; };
 		78A03FA01AE6073BCE1D0365 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 817009FD0A58C6B03531F376 /* Assets.xcassets */; };
+		78E1AE31D8EA6F3328AB38F6 /* AppStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7103D3582C0D03E5D7135C71 /* AppStyle.swift */; };
+		79E6C9972C2367583914AC57 /* AppLaunchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B1C0B281305E72E7185080 /* AppLaunchScreen.swift */; };
+		7DEAA800FBB6BD64340B7FC0 /* ScreenStateReporting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9521B2364DCABA2C0A12DF35 /* ScreenStateReporting.swift */; };
+		8FECA0AC6A071905CAFE2597 /* CrashesScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7FD4FD404798F5880C5EFB /* CrashesScreen.swift */; };
+		99A3C6152410CC6EE40A8475 /* PerformanceToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41072FF232A30EA47A5E802E /* PerformanceToggle.swift */; };
+		A2D37C0C57B3AF6939EDC7D0 /* GPUScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C5E06B544BBE48560B9FC2 /* GPUScreen.swift */; };
+		A53715AA78CA82DD87ACEFB9 /* ReproducibleState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326915B3881A424F5ED56A39 /* ReproducibleState.swift */; };
 		A9E712F1D9524CE1C392C626 /* HitchScopeExampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C1466A1906496D3EC27E798 /* HitchScopeExampleApp.swift */; };
+		B84A440BA69A6F66C13EDD13 /* StateReportingScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 205A934D4D8F245853135AC9 /* StateReportingScreen.swift */; };
 		CB080D35F07CFC8E943A296F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6865C7A882437D983E16A749 /* ContentView.swift */; };
-		D8DD5D88BB9790F3C0E1F19D /* ScrollJankView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4D6358BEA97944B11091A9 /* ScrollJankView.swift */; };
 		DB4335A1E4F2F68AB54AFAF4 /* Workloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8895EF23E301A74FC0085CA6 /* Workloads.swift */; };
+		E9335CD15F643D2128B7A93F /* OtherMetricsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52141ED2BC1B18F855EFB56D /* OtherMetricsScreen.swift */; };
+		EAD37D2325266156A2CC9E5F /* MemoryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E183A4DD5EF3BD58EDF7A70 /* MemoryScreen.swift */; };
+		F74783145A3B9E0D1C963CEF /* MetricScreenHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 616339831A80CB15334F379C /* MetricScreenHeader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		06A72DCC78ED4646F01F1D72 /* TerminationsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationsScreen.swift; sourceTree = "<group>"; };
+		205A934D4D8F245853135AC9 /* StateReportingScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateReportingScreen.swift; sourceTree = "<group>"; };
 		3115A1269552F30EA9D91FE1 /* HitchScopeExample.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HitchScopeExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		326915B3881A424F5ED56A39 /* ReproducibleState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReproducibleState.swift; sourceTree = "<group>"; };
 		3C1466A1906496D3EC27E798 /* HitchScopeExampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HitchScopeExampleApp.swift; sourceTree = "<group>"; };
+		41072FF232A30EA47A5E802E /* PerformanceToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceToggle.swift; sourceTree = "<group>"; };
 		4AC3573B08BFD64DD313AB30 /* SlowLaunchFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlowLaunchFlag.swift; sourceTree = "<group>"; };
+		52141ED2BC1B18F855EFB56D /* OtherMetricsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OtherMetricsScreen.swift; sourceTree = "<group>"; };
+		5E183A4DD5EF3BD58EDF7A70 /* MemoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryScreen.swift; sourceTree = "<group>"; };
+		616339831A80CB15334F379C /* MetricScreenHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricScreenHeader.swift; sourceTree = "<group>"; };
 		6865C7A882437D983E16A749 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		7103D3582C0D03E5D7135C71 /* AppStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStyle.swift; sourceTree = "<group>"; };
 		817009FD0A58C6B03531F376 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8895EF23E301A74FC0085CA6 /* Workloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workloads.swift; sourceTree = "<group>"; };
+		92DBD6861126DA8F3AEC054A /* CPUScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CPUScreen.swift; sourceTree = "<group>"; };
+		9431E3724A728DCFDC3180C7 /* ScrollHitchesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollHitchesScreen.swift; sourceTree = "<group>"; };
+		9521B2364DCABA2C0A12DF35 /* ScreenStateReporting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenStateReporting.swift; sourceTree = "<group>"; };
+		97B1C0B281305E72E7185080 /* AppLaunchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchScreen.swift; sourceTree = "<group>"; };
+		99946AE15843EC99DE4BE71A /* MetricCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCatalog.swift; sourceTree = "<group>"; };
 		9B1E9D880200A8CF3BE8D565 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		A0BA3545E595F95C7A00CF72 /* HangsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HangsScreen.swift; sourceTree = "<group>"; };
 		A7C63C50C79E646AB06F0375 /* HitchScope */ = {isa = PBXFileReference; lastKnownFileType = folder; name = HitchScope; path = ..; sourceTree = SOURCE_ROOT; };
-		E97A0F0B667AAA1CC0D87881 /* GPUBusyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUBusyView.swift; sourceTree = "<group>"; };
-		EA4D6358BEA97944B11091A9 /* ScrollJankView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollJankView.swift; sourceTree = "<group>"; };
+		BD62F9FC39FC3260FF748C1E /* DiskWritesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskWritesScreen.swift; sourceTree = "<group>"; };
+		C742B5D8CC18C19B5EFA2F34 /* NetworkScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScreen.swift; sourceTree = "<group>"; };
+		CD7FD4FD404798F5880C5EFB /* CrashesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashesScreen.swift; sourceTree = "<group>"; };
+		D5C5E06B544BBE48560B9FC2 /* GPUScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPUScreen.swift; sourceTree = "<group>"; };
+		F0A1CF78299AD709FEB359D3 /* MetricRowLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricRowLabel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,6 +110,13 @@
 		B27D67B0D5D9BDCB2A8BA501 /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				7103D3582C0D03E5D7135C71 /* AppStyle.swift */,
+				99946AE15843EC99DE4BE71A /* MetricCatalog.swift */,
+				F0A1CF78299AD709FEB359D3 /* MetricRowLabel.swift */,
+				616339831A80CB15334F379C /* MetricScreenHeader.swift */,
+				41072FF232A30EA47A5E802E /* PerformanceToggle.swift */,
+				326915B3881A424F5ED56A39 /* ReproducibleState.swift */,
+				9521B2364DCABA2C0A12DF35 /* ScreenStateReporting.swift */,
 				4AC3573B08BFD64DD313AB30 /* SlowLaunchFlag.swift */,
 				8895EF23E301A74FC0085CA6 /* Workloads.swift */,
 			);
@@ -85,8 +126,18 @@
 		DB39AEE63B635DDFC1E60B56 /* Screens */ = {
 			isa = PBXGroup;
 			children = (
-				E97A0F0B667AAA1CC0D87881 /* GPUBusyView.swift */,
-				EA4D6358BEA97944B11091A9 /* ScrollJankView.swift */,
+				97B1C0B281305E72E7185080 /* AppLaunchScreen.swift */,
+				92DBD6861126DA8F3AEC054A /* CPUScreen.swift */,
+				CD7FD4FD404798F5880C5EFB /* CrashesScreen.swift */,
+				BD62F9FC39FC3260FF748C1E /* DiskWritesScreen.swift */,
+				D5C5E06B544BBE48560B9FC2 /* GPUScreen.swift */,
+				A0BA3545E595F95C7A00CF72 /* HangsScreen.swift */,
+				5E183A4DD5EF3BD58EDF7A70 /* MemoryScreen.swift */,
+				C742B5D8CC18C19B5EFA2F34 /* NetworkScreen.swift */,
+				52141ED2BC1B18F855EFB56D /* OtherMetricsScreen.swift */,
+				9431E3724A728DCFDC3180C7 /* ScrollHitchesScreen.swift */,
+				205A934D4D8F245853135AC9 /* StateReportingScreen.swift */,
+				06A72DCC78ED4646F01F1D72 /* TerminationsScreen.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -174,12 +225,29 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				79E6C9972C2367583914AC57 /* AppLaunchScreen.swift in Sources */,
+				78E1AE31D8EA6F3328AB38F6 /* AppStyle.swift in Sources */,
+				20801F92A32331A9D920A80A /* CPUScreen.swift in Sources */,
 				CB080D35F07CFC8E943A296F /* ContentView.swift in Sources */,
-				00E3B91524E26DDD492DE168 /* GPUBusyView.swift in Sources */,
+				8FECA0AC6A071905CAFE2597 /* CrashesScreen.swift in Sources */,
+				70F3793D1E460AD2D4ED3935 /* DiskWritesScreen.swift in Sources */,
+				A2D37C0C57B3AF6939EDC7D0 /* GPUScreen.swift in Sources */,
+				487FA02D62DACD2B4BF22240 /* HangsScreen.swift in Sources */,
 				A9E712F1D9524CE1C392C626 /* HitchScopeExampleApp.swift in Sources */,
-				D8DD5D88BB9790F3C0E1F19D /* ScrollJankView.swift in Sources */,
+				EAD37D2325266156A2CC9E5F /* MemoryScreen.swift in Sources */,
+				1F38C4D9C9B7B8E00E02E944 /* MetricCatalog.swift in Sources */,
+				0AC043EBA02D3A9E88A7E210 /* MetricRowLabel.swift in Sources */,
+				F74783145A3B9E0D1C963CEF /* MetricScreenHeader.swift in Sources */,
+				01061AEDDC5C047939586D5C /* NetworkScreen.swift in Sources */,
+				E9335CD15F643D2128B7A93F /* OtherMetricsScreen.swift in Sources */,
+				99A3C6152410CC6EE40A8475 /* PerformanceToggle.swift in Sources */,
+				A53715AA78CA82DD87ACEFB9 /* ReproducibleState.swift in Sources */,
+				7DEAA800FBB6BD64340B7FC0 /* ScreenStateReporting.swift in Sources */,
+				546CD57B3479A1F54FF26098 /* ScrollHitchesScreen.swift in Sources */,
 				06640A6BD176BDA1DCE8570C /* Secrets.swift in Sources */,
 				70DAEF672B6305AF50CB92F6 /* SlowLaunchFlag.swift in Sources */,
+				B84A440BA69A6F66C13EDD13 /* StateReportingScreen.swift in Sources */,
+				45C09CFCD81E43035C5A129B /* TerminationsScreen.swift in Sources */,
 				DB4335A1E4F2F68AB54AFAF4 /* Workloads.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
