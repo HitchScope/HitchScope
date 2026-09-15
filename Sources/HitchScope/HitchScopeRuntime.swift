@@ -10,7 +10,13 @@ actor HitchScopeRuntime {
 
   private var apiKey: String?
   private var declaredDomains: Set<String> = []
-  private var bridge: MetricKitBridge?
+  // Type-erased: MetricKitBridge is iOS 27+ only, but this actor itself
+  // must stay available at the package's lower floor so the public API
+  // (HitchScope.configure/reportState/updateVolatileMetadata) is callable
+  // unconditionally from any app code - it simply never gets constructed,
+  // and every use of it below is behind its own `#available` check, on
+  // earlier OS versions.
+  private var bridge: Any?
   private var buffer: [IngestEvent] = []
   private var metricBuffer: [MetricAggregateIngestEvent] = []
 
@@ -47,6 +53,12 @@ actor HitchScopeRuntime {
       .default, log: Self.log, "configured with domains: %{public}@",
       trackedStates.sorted().joined(separator: ", "))
 
+    guard #available(iOS 27, *) else {
+      os_log(
+        .default, log: Self.log,
+        "running as a no-op on this OS version - HitchScope requires iOS 27+")
+      return
+    }
     let bridge = MetricKitBridge(domains: trackedStates, sink: self)
     self.bridge = bridge
     Task { await bridge.start() }
@@ -75,7 +87,8 @@ actor HitchScopeRuntime {
       return
     }
     lastRejectionReason = nil
-    await bridge?.reportState(
+    guard #available(iOS 27, *), let bridge = bridge as? MetricKitBridge else { return }
+    await bridge.reportState(
       domain: domain, label: label, stableMetadata: stableMetadata,
       volatileMetadata: volatileMetadata)
   }
@@ -90,7 +103,8 @@ actor HitchScopeRuntime {
       return
     }
     lastRejectionReason = nil
-    await bridge?.updateVolatileMetadata(domain: domain, metadata: metadata)
+    guard #available(iOS 27, *), let bridge = bridge as? MetricKitBridge else { return }
+    await bridge.updateVolatileMetadata(domain: domain, metadata: metadata)
   }
 
   func enqueue(_ event: IngestEvent) async {

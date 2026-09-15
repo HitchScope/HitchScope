@@ -18,6 +18,7 @@ import XCTest
 /// and the simulator's whole filesystem lives on the host disk under
 /// ~/Library/Developer/CoreSimulator/, so a plain `cat` from the host reads
 /// it directly) - then blank the array again before committing.
+@available(iOS 27, *)
 final class FixtureReplayExportTests: XCTestCase {
   private let fixturesToExport: [String] = []
 

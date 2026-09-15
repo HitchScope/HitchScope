@@ -24,6 +24,7 @@ import XCTest
 /// MetricKit frame is just a binary UUID + offset, meaningless without a
 /// dSYM to symbolicate it, and Xcode Organizer already gives that for free
 /// on any TestFlight/App Store build. See the future-roadmap doc.
+@available(iOS 27, *)
 final class MetricKitBridgeFixtureTests: XCTestCase {
   private func loadFixture(_ name: String) throws -> DiagnosticReport {
     let url = try XCTUnwrap(
