@@ -8,7 +8,7 @@ HitchScope is an open-source SDK backing a commercial product, maintained by a s
 
 ## Development
 
-This package targets iOS 27+ and is iOS-only, so plain `swift build`/`swift test` won't work (they compile for the macOS host by default). Build and test against an iOS simulator instead:
+This package's floor is iOS 17+ (its real MetricKit/StateReporting functionality requires iOS 27+, gated behind `@available` checks so it's a safe no-op below that), and it's iOS-only, so plain `swift build`/`swift test` won't work (they compile for the macOS host by default). Build and test against an iOS simulator instead:
 
 ```bash
 xcodebuild test -scheme HitchScope -destination 'platform=iOS Simulator,name=iPhone 18 Pro'

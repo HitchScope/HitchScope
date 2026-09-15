@@ -37,6 +37,7 @@ import XCTest
 /// report's entire `timeRange` - independently of whatever `summarizeMetrics`
 /// found. Every fixture here happens to carry a `fullDayEntry`, so every one
 /// of these tests exercises real recovered data, not a synthetic case.
+@available(iOS 27, *)
 final class MetricKitBridgeMetricFixtureTests: XCTestCase {
   private func loadFixture(_ name: String) throws -> MetricReport {
     let url = try XCTUnwrap(

@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "HitchScope",
-    platforms: [.iOS(.v27)],
+    platforms: [.iOS(.v17)],
     products: [
         .library(name: "HitchScope", targets: ["HitchScope"])
     ],

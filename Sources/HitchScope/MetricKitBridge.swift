@@ -3,10 +3,53 @@ import MetricKit
 import StateReporting
 import os.log
 
+/// A single metadata type used for every domain HitchScope reports on.
+///
+/// Apple's `StateReporter.reporter(for:)` crashes at runtime if called twice
+/// for the same domain with different metadata *types* — awkward for a
+/// third-party SDK that doesn't know ahead of time what metadata shape a
+/// given app wants for a given domain. Using one uniform dictionary-backed
+/// type everywhere sidesteps that entirely: every `StateReporter` HitchScope
+/// creates is `StateReporter<HitchScopeMetadataDictionary, HitchScopeMetadataDictionary>`,
+/// so there's never a type mismatch across repeated `.reporter(for:)` calls.
+///
+/// Lives here, not in HitchScopeMetadata.swift, because it's the only thing
+/// that needs to convert the SDK's own OS-version-agnostic
+/// `HitchScopeMetadataValue` into StateReporting's iOS-27-only
+/// `ReportableMetadataValue` — everything else in this SDK's public API
+/// only ever touches the former.
+@available(iOS 27, *)
+struct HitchScopeMetadataDictionary: ReportableMetadata {
+  let metadataDictionary: [String: ReportableMetadataValue]
+
+  init(_ values: [String: HitchScopeMetadataValue]) {
+    self.metadataDictionary = values.mapValues(\.reportableValue)
+  }
+}
+
+@available(iOS 27, *)
+extension HitchScopeMetadataValue {
+  fileprivate var reportableValue: ReportableMetadataValue {
+    switch self {
+    case .date(let value): .date(value)
+    case .string(let value): .string(value)
+    // Widening Int -> Int128 always fits, no clamping/precision concern -
+    // unlike the narrowing Int128 -> Int conversion `jsonValue(_:)` below
+    // has to guard against when going the other direction.
+    case .integer(let value): .integer(Int128(value))
+    case .floatingPoint(let value): .floatingPoint(value)
+    }
+  }
+}
+
 /// The only file that imports `MetricKit`/`StateReporting`. Owns the
 /// `MetricManager` (constructed once with every domain declared at
 /// `configure`), one `StateReporter` per declared domain, and the task
-/// consuming `diagnosticReports`.
+/// consuming `diagnosticReports`. Everything in this file requires iOS 27 -
+/// the SDK's public API (`HitchScope.swift`) stays available on earlier OS
+/// versions and simply never constructs this actor there, so integrators
+/// don't need to guard their own call sites.
+@available(iOS 27, *)
 actor MetricKitBridge {
   private static let log = OSLog(subsystem: "com.hitchscope.sdk", category: "MetricKitBridge")
 

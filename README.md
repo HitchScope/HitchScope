@@ -80,7 +80,7 @@ Not yet handled: full symbolicated call stacks (payloads carry a small summary, 
 
 ## Requirements
 
-iOS 27+. This SDK is built on APIs introduced in iOS 27 — there's no fallback for earlier versions.
+Package floor is iOS 17+, so the app you add it to doesn't need to raise its own deployment target. All real functionality is built on APIs introduced in iOS 27, though — `HitchScope.configure`/`reportState`/`updateVolatileMetadata` are safe to call unconditionally on any supported OS version, but do nothing at all below iOS 27 (no MetricKit subscription is ever created). There's no partial/degraded functionality on 17-26 - it's a full no-op until the device is on 27.
 
 ## Installation
 
