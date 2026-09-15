@@ -39,6 +39,37 @@ final class EventMapperTests: XCTestCase {
     guard case .int(4) = event.payload["threadCount"] else {
       return XCTFail("expected threadCount")
     }
+    guard case .int(2) = event.payload["exceptionCode"] else {
+      return XCTFail("expected exceptionCode")
+    }
+  }
+
+  /// A crash's exception code can be a raw 64-bit memory address, so a
+  /// value above `Int.max` must round-trip exactly as text rather than
+  /// being silently corrupted by conversion to `Double` (which loses
+  /// precision above 2^53).
+  func testCrashExceptionCodeAboveIntMaxPreservesExactValueAsString() {
+    let hugeCode: UInt64 = UInt64.max
+    let summary = DiagnosticSummary(
+      states: [],
+      occurredAt: fixedDate,
+      kind: .crash(
+        CrashSummary(
+          terminationReason: nil,
+          terminationCategory: nil,
+          exceptionType: nil,
+          exceptionCode: hugeCode,
+          signal: nil,
+          threadCount: 1
+        ))
+    )
+
+    let event = EventMapper.map(summary)
+
+    guard case .string(let encoded) = event.payload["exceptionCode"] else {
+      return XCTFail("expected exceptionCode to fall back to a string above Int.max")
+    }
+    XCTAssertEqual(encoded, String(hugeCode))
   }
 
   func testCrashOmitsNilOptionalFields() {
