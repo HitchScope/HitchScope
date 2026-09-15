@@ -25,22 +25,42 @@ struct IngestClient: Sendable {
     case transportError(Error)
   }
 
+  /// Result of `send`/`sendMetrics`: chunks POST strictly in order, so
+  /// `sentCount` is always a safe prefix-length of the input array to drop
+  /// from the caller's buffer — even when `error` is non-nil, since
+  /// whichever chunks preceded the failing one were genuinely accepted by
+  /// the server. Resending them on the next flush would duplicate-ingest
+  /// them rather than "retry" anything.
+  struct Outcome: Sendable {
+    let sentCount: Int
+    /// Server-reported accepted count across whichever chunks succeeded —
+    /// informational (logging) only, not what buffer-trimming should use:
+    /// the server may accept fewer than a chunk's size for reasons that
+    /// don't mean "resend the rest of this chunk" (e.g. validation).
+    let accepted: Int
+    let error: IngestError?
+  }
+
   /// Sends one request per chunk of up to 500 events (the backend's max
   /// batch size). Returns once every chunk has either succeeded or
   /// exhausted its retry.
   func send(appVersion: String, osVersion: String, deviceModel: String, events: [IngestEvent]) async
-    -> Result<Int, IngestError>
+    -> Outcome
   {
+    var sentCount = 0
     var totalAccepted = 0
     for chunk in events.chunked(into: 500) {
       let request = IngestRequest(
         appVersion: appVersion, osVersion: osVersion, deviceModel: deviceModel, events: chunk)
       switch await postWithRetry(path: "v1/ingest", body: request) {
-      case .success(let accepted): totalAccepted += accepted
-      case .failure(let error): return .failure(error)
+      case .success(let accepted):
+        sentCount += chunk.count
+        totalAccepted += accepted
+      case .failure(let error):
+        return Outcome(sentCount: sentCount, accepted: totalAccepted, error: error)
       }
     }
-    return .success(totalAccepted)
+    return Outcome(sentCount: sentCount, accepted: totalAccepted, error: nil)
   }
 
   /// Same shape as `send`, for the separate metric-aggregates stream (a
@@ -50,18 +70,22 @@ struct IngestClient: Sendable {
     appVersion: String, osVersion: String, deviceModel: String,
     metrics: [MetricAggregateIngestEvent]
   )
-    async -> Result<Int, IngestError>
+    async -> Outcome
   {
+    var sentCount = 0
     var totalAccepted = 0
     for chunk in metrics.chunked(into: 500) {
       let request = MetricAggregateIngestRequest(
         appVersion: appVersion, osVersion: osVersion, deviceModel: deviceModel, metrics: chunk)
       switch await postWithRetry(path: "v1/ingest-metrics", body: request) {
-      case .success(let accepted): totalAccepted += accepted
-      case .failure(let error): return .failure(error)
+      case .success(let accepted):
+        sentCount += chunk.count
+        totalAccepted += accepted
+      case .failure(let error):
+        return Outcome(sentCount: sentCount, accepted: totalAccepted, error: error)
       }
     }
-    return .success(totalAccepted)
+    return Outcome(sentCount: sentCount, accepted: totalAccepted, error: nil)
   }
 
   private func postWithRetry<Body: Encodable>(path: String, body: Body) async -> Result<
