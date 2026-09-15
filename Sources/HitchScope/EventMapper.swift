@@ -32,7 +32,12 @@ enum EventMapper {
       }
       if let exceptionType = crash.exceptionType { payload["exceptionType"] = .int(exceptionType) }
       if let exceptionCode = crash.exceptionCode {
-        payload["exceptionCode"] = .double(Double(exceptionCode))
+        // A crash's exception code can be a raw 64-bit memory address -
+        // Double loses precision above 2^53, so preserve the exact value
+        // as text rather than silently corrupting high bits (same pattern
+        // MetricKitBridge.jsonValue uses for Int128 overflow).
+        payload["exceptionCode"] =
+          Int(exactly: exceptionCode).map(JSONValue.int) ?? .string(String(exceptionCode))
       }
       if let signal = crash.signal { payload["signal"] = .int(signal) }
       return (.crash, payload)
