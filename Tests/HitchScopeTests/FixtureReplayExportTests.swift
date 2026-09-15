@@ -24,9 +24,9 @@ final class FixtureReplayExportTests: XCTestCase {
   func testExportFixturesForReplay() throws {
     // Caches, not NSTemporaryDirectory() - a simulator's /tmp is cleared as
     // part of the run's own teardown, before there's any chance to read it
-    // back from the host; Caches is what `captureFixture` already uses
-    // elsewhere in this codebase for exactly this "pull a file off the
-    // simulator after the run" purpose, and it persists.
+    // back from the host; Caches is what the Example app's `FixtureCapture`
+    // already uses for exactly this "pull a file off the simulator after
+    // the run" purpose, and it persists.
     let cachesURL = try FileManager.default.url(
       for: .cachesDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
     for fixtureName in fixturesToExport {

@@ -4,18 +4,21 @@ import XCTest
 @testable import HitchScope
 
 /// Exercises `MetricKitBridge.summarize(_:)` against real `DiagnosticReport`
-/// JSON captured on a physical device (via the SDK's own fixture-harvesting
-/// mechanism, then pulled from the device and committed here) - not
+/// JSON captured on a physical device or simulator (via the Example app's
+/// `FixtureCapture`, then pulled from the device and committed here) - not
 /// hand-written test doubles. `DiagnosticReport` has no public initializer
 /// (confirmed: Apple's MetricKit types only construct via `Decodable`), so
 /// decoding a real capture is the only way to get one for a test at all.
 ///
 /// Coverage is currently 2 of the 6 `DiagnosticKind` cases - crash and
 /// memoryException. No real fixtures exist yet for hang, appLaunch,
-/// cpuException, or diskWriteException (the Example app has no trigger for
-/// the latter two at all yet - see the future-roadmap note on Example app
-/// trigger coverage). Don't read "all fixture tests pass" as "every
-/// diagnostic kind is validated against real data" - it isn't, yet.
+/// cpuException, or diskWriteException - the Example app now has a trigger
+/// for all four, but none reliably produces a diagnostic on demand: hang
+/// and appLaunch aren't consistently observed even after the trigger runs,
+/// and cpuException/diskWriteException are gated behind an undocumented
+/// Apple threshold. Getting a real capture for these is opportunistic, not
+/// guaranteed. Don't read "all fixture tests pass" as "every diagnostic
+/// kind is validated against real data" - it isn't, yet.
 ///
 /// No call-stack frame extraction here (or in `MetricKitBridge` at all) - a
 /// MetricKit frame is just a binary UUID + offset, meaningless without a
