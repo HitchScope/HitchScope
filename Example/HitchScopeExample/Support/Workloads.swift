@@ -13,15 +13,25 @@ enum Workloads {
   /// unconditionally contributes to `cpuTime`/`cpuInstructionsCount`.
   /// `sin`/`sqrt` accumulation plus a live deadline check keeps this from
   /// being optimized away as dead code.
-  static func runCPUBusyWorkload(duration: TimeInterval = 60, completion: @escaping () -> Void) {
+  ///
+  /// `lowImpact` is the CPU screen's A/B toggle "fixed" path: same work, but
+  /// at a lower QoS and yielding periodically instead of running flat-out,
+  /// so it doesn't dominate the CPU the way the default loop does.
+  static func runCPUBusyWorkload(
+    duration: TimeInterval = 60, lowImpact: Bool = false, completion: @escaping () -> Void
+  ) {
     let group = DispatchGroup()
+    let qos: DispatchQoS.QoSClass = lowImpact ? .utility : .userInitiated
     for _ in 0..<4 {
       group.enter()
-      DispatchQueue.global(qos: .userInitiated).async {
+      DispatchQueue.global(qos: qos).async {
         let deadline = Date().addingTimeInterval(duration)
         var x = 1.0
         while Date() < deadline {
           x = sin(x) + sqrt(abs(x) + 1)
+          if lowImpact {
+            Thread.sleep(forTimeInterval: 0.005)
+          }
         }
         group.leave()
       }
@@ -34,8 +44,12 @@ enum Workloads {
   /// success/cancellation so repeated taps can't fill the device disk. Feeds
   /// `diskWriteException` if MetricKit's threshold happens to be crossed
   /// (not guaranteed, undocumented).
+  ///
+  /// `throttled` is the Disk Writes screen's A/B toggle "fixed" path: larger
+  /// chunks with a brief pause between writes, so it produces far fewer,
+  /// less bursty syscalls over the same wall-clock duration.
   static func runDiskWriteWorkload(
-    duration: TimeInterval = 60, totalBytes: Int = 1_000_000_000,
+    duration: TimeInterval = 60, totalBytes: Int = 1_000_000_000, throttled: Bool = false,
     completion: @escaping () -> Void
   ) {
     DispatchQueue.global(qos: .userInitiated).async {
@@ -50,12 +64,16 @@ enum Workloads {
       }
       defer { try? handle.close() }
 
-      let chunk = Data(repeating: 0xFF, count: 1_000_000)
+      let chunkSize = throttled ? 16_000_000 : 1_000_000
+      let chunk = Data(repeating: 0xFF, count: chunkSize)
       let deadline = Date().addingTimeInterval(duration)
       var written = 0
       while Date() < deadline && written < totalBytes {
         try? handle.write(contentsOf: chunk)
         written += chunk.count
+        if throttled {
+          Thread.sleep(forTimeInterval: 0.05)
+        }
       }
       DispatchQueue.main.async(execute: completion)
     }
