@@ -39,7 +39,6 @@ actor MetricKitBridge {
     os_log(.default, log: Self.log, "started consuming diagnosticReports/metricReports")
     consumeTask = Task { [manager, sink] in
       for await report in manager.diagnosticReports {
-        Self.captureFixture(report, kind: "diagnostic")
         let summaries = Self.summarize(report)
         let kindName = Mirror(reflecting: report.result).children.first?.label ?? "unknown"
         os_log(.default, log: Self.log, "received diagnosticReport: kind=%{public}@", kindName)
@@ -50,7 +49,6 @@ actor MetricKitBridge {
     }
     consumeMetricsTask = Task { [manager, sink] in
       for await report in manager.metricReports {
-        Self.captureFixture(report, kind: "metric")
         // Metrics arrive as a whole report at once (roughly daily, per
         // Apple's own docs) - batch the whole report into one flush rather
         // than one per value, keeping each ingest payload coherent.
@@ -80,35 +78,6 @@ actor MetricKitBridge {
 
   func updateVolatileMetadata(domain: String, metadata: [String: HitchScopeMetadataValue]) {
     reporters[domain]?.reportVolatileMetadataUpdate(HitchScopeMetadataDictionary(metadata))
-  }
-
-  // MARK: - Fixture capture (temporary harvesting tool, not a shipped
-  // feature - delete once real fixtures exist for MetricKitBridgeFixtureTests.
-  // See the MetricKit fixture-test-harness plan.)
-
-  // Path is duplicated (not exposed as public API) in the Example app's
-  // ContentView.swift so it can list captured files - not worth growing
-  // the SDK's public surface for scaffolding meant to be deleted later.
-  private static let fixturesDirectory: URL = {
-    FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent("HitchScopeFixtures", isDirectory: true)
-  }()
-
-  private static func captureFixture(_ report: some Encodable, kind: String) {
-    do {
-      try FileManager.default.createDirectory(
-        at: fixturesDirectory, withIntermediateDirectories: true)
-      let formatter = DateFormatter()
-      formatter.dateFormat = "yyyyMMdd'T'HHmmss.SSS"
-      let filename = "\(kind)-\(formatter.string(from: Date())).json"
-      let data = try JSONEncoder().encode(report)
-      try data.write(to: fixturesDirectory.appendingPathComponent(filename))
-      os_log(.default, log: Self.log, "captured fixture: %{public}@", filename)
-    } catch {
-      os_log(
-        .error, log: Self.log, "failed to capture fixture: %{public}@",
-        String(describing: error))
-    }
   }
 
   // MARK: - DiagnosticReport -> plain DiagnosticSummary

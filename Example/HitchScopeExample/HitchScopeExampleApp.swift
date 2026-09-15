@@ -1,6 +1,26 @@
 import SwiftUI
 import HitchScope
 
+/// Several independent domains, not one - each screen/experiment tracks its
+/// own current label simultaneously, with none privileged: .screen
+/// (auto-reported by every screen via reportsScreenState), .fixture (the
+/// shared "checkout" business-state fixture triggers set before reproducing
+/// a problem), .demo + .experiment.demo (the State Reporting API screen's
+/// own manual demo domains), and one .experiment.<metricID> per metric
+/// screen with an A/B toggle. Shared between HitchScope.configure and
+/// FixtureCapture.start so captured fixtures carry the same environment
+/// data real ingested events would.
+private let trackedStateDomains: Set<String> = [
+    "com.hitchscope.example.screen",
+    "com.hitchscope.example.fixture",
+    "com.hitchscope.example.demo",
+    "com.hitchscope.example.experiment.demo",
+    "com.hitchscope.example.experiment.hangs",
+    "com.hitchscope.example.experiment.cpu",
+    "com.hitchscope.example.experiment.diskWrites",
+    "com.hitchscope.example.experiment.scrollHitches",
+]
+
 @main
 struct HitchScopeExampleApp: App {
     init() {
@@ -25,25 +45,13 @@ struct HitchScopeExampleApp: App {
             Secrets.apiKey != "ci-placeholder-not-a-real-key",
             "Secrets.swift has the CI placeholder key, not a real one - see Secrets.swift.example.")
 
-        // Several independent domains, not one - each screen/experiment
-        // tracks its own current label simultaneously, with none privileged:
-        // .screen (auto-reported by every screen via reportsScreenState),
-        // .fixture (the shared "checkout" business-state fixture triggers
-        // set before reproducing a problem), .demo + .experiment.demo (the
-        // State Reporting API screen's own manual demo domains), and one
-        // .experiment.<metricID> per metric screen with an A/B toggle.
-        HitchScope.configure(
-            apiKey: Secrets.apiKey,
-            trackedStates: [
-                "com.hitchscope.example.screen",
-                "com.hitchscope.example.fixture",
-                "com.hitchscope.example.demo",
-                "com.hitchscope.example.experiment.demo",
-                "com.hitchscope.example.experiment.hangs",
-                "com.hitchscope.example.experiment.cpu",
-                "com.hitchscope.example.experiment.diskWrites",
-                "com.hitchscope.example.experiment.scrollHitches",
-            ])
+        HitchScope.configure(apiKey: Secrets.apiKey, trackedStates: trackedStateDomains)
+
+        // Harvests real on-device reports as JSON fixtures for the SDK's own
+        // test suite - entirely separate from what HitchScope.configure does,
+        // see FixtureCapture's own doc comment for why this isn't part of
+        // the SDK itself.
+        FixtureCapture.start(domains: trackedStateDomains)
     }
 
     var body: some Scene {
